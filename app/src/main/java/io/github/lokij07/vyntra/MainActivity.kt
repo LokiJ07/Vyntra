@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.lokij07.vyntra.data.SearchField
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import io.github.lokij07.vyntra.ui.PreviewPlayer
@@ -130,7 +131,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1.3", color = Muted, fontSize = 12.sp)
+                    Text("v0.1.4", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser, onCopy = { value ->
@@ -172,7 +173,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            SectionTitle("Search songs & artists", "Artist music + official catalog • no account required")
+            SectionTitle("Find the right song", "Search real track titles and performer names")
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SearchSource.entries.forEach { source ->
@@ -185,16 +186,29 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 }
             }
             Text(if (vm.searchSource == SearchSource.AUDIUS)
-                    "Artist-uploaded tracks. Download is available only when the artist enables it."
-                 else "Official OPM/international songs. Previews stream only; full music is available from the store.",
+                    "Only creator-enabled downloads on Audius. Mainstream songs may not be available."
+                 else "Official OPM/international music. Search and view in store; not free MP3 downloads.",
                  color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("Match by", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SearchField.entries.forEach { field ->
+                    FilterChip(
+                        selected = vm.searchField == field,
+                        onClick = { preview.stop(); vm.selectField(field) },
+                        enabled = !vm.isSearching,
+                        label = { Text(field.label, fontSize = 11.sp) }
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = vm.query,
                     onValueChange = { vm.query = it },
                     modifier = Modifier.weight(1f), singleLine = true,
-                    placeholder = { Text("Artist, genre or title") },
+                    placeholder = { Text("e.g. SB19, Gento, Bruno Mars") },
                     leadingIcon = { Icon(Icons.Default.Search, null, tint = Accent) },
                     shape = RoundedCornerShape(16.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -237,7 +251,11 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 }
             }
         }
-        item { SectionTitle("Explore songs", "Search song titles or artists such as SB19, Bruno Mars, OPM") }
+        item {
+            SectionTitle("Matching results", if (vm.tracks.isEmpty())
+                "Real titles and artist names only"
+                "${vm.tracks.size} relevant track${if (vm.tracks.size == 1) "" else "s"} found")
+        }
         if (vm.isSearching && vm.tracks.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
@@ -247,7 +265,11 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             item { Text(message, color = Color(0xFFFFABAB), fontSize = 13.sp) }
         }
         if (!vm.isSearching && vm.error == null && vm.tracks.isEmpty()) {
-            item { EmptyCard("No matching songs found in this catalog. Try the other category.") }
+            item { EmptyCard(if (vm.query.isBlank())
+                "Enter an artist or song title to search. Try SB19, Bruno Mars or Gento."
+                else if (vm.searchSource == SearchSource.AUDIUS)
+                    "No artist-approved downloadable tracks matched exactly. Try Official music to find the song listing."
+                else "No matching song or artist in this store catalog. Try another spelling or choose Artist / Song title.") }
         }
         items(vm.tracks, key = { it.id }) { track ->
             TrackCard(track,
@@ -272,7 +294,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            Text("Audius download buttons respect creator download settings. Official catalog previews are streamed only; purchase or listen through the linked store.",
+            Text("Results must match your artist or song title. Artist downloads are limited to tracks the creator permits. Official music results link to the store, not free MP3 files.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
                 modifier = Modifier.padding(bottom = 14.dp))
         }
@@ -448,7 +470,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
             }
         }
         item { SectionTitle("How it works", "Independent app • LokiTunes-friendly") }
-        item { AboutCard("1 • Discover", "Search artist-uploaded Audius music or switch to official iTunes song listings, including OPM and international artists.") }
+        item { AboutCard("1 • Discover", "Search official song listings by artist or title, or switch to artist-enabled Audius downloads. Results are filtered for actual matches.") }
         item { AboutCard("2 • Check permissions", "Audius creators control whether their track can be downloaded. Official iTunes listings are browse, preview and store-link only.") }
         item { AboutCard("3 • Download", "Authorized audio downloads go to the shared Downloads/Vyntra folder using Android Download Manager.") }
         item { AboutCard("4 • Listen offline", "Tap Play / Open to choose an installed audio player. LokiTunes may also discover these files in its local library scan.") }

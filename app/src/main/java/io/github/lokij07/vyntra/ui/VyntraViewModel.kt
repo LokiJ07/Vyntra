@@ -9,27 +9,29 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.lokij07.vyntra.data.AudioFiles
 import io.github.lokij07.vyntra.data.DownloadsRepository
-import io.github.lokij07.vyntra.data.OpenverseRepository
 import io.github.lokij07.vyntra.data.AudiusRepository
 import io.github.lokij07.vyntra.data.ItunesRepository
+import io.github.lokij07.vyntra.data.SearchField
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 enum class SearchSource(val label: String) {
-    AUDIUS("Downloadable music"),
-    ITUNES("Official songs")
+    ITUNES("Official music"),
+    AUDIUS("Artist downloads")
 }
 
 class VyntraViewModel(application: Application) : AndroidViewModel(application) {
     private val audiusSearch = AudiusRepository()
     private val itunesSearch = ItunesRepository()
-    var searchSource by mutableStateOf(SearchSource.AUDIUS)
+    var searchSource by mutableStateOf(SearchSource.ITUNES)
         private set
     private val downloader = DownloadsRepository(application)
 
-    var query by mutableStateOf("pop")
+    var query by mutableStateOf("")
+    var searchField by mutableStateOf(SearchField.BOTH)
+        private set
     var link by mutableStateOf("")
     var tracks by mutableStateOf<List<AudioTrack>>(emptyList())
         private set
@@ -44,18 +46,26 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
     var canLoadMore by mutableStateOf(true)
         private set
 
-    init {
-        refreshDownloads()
-        search()
-    }
+    init { refreshDownloads() }
 
     fun selectSource(source: SearchSource) {
         if (isSearching || searchSource == source) return
         searchSource = source
         tracks = emptyList()
+        error = null
         canLoadMore = false
         page = 1
-        search()
+        if (query.isNotBlank()) search()
+    }
+
+    fun selectField(field: SearchField) {
+        if (isSearching || field == searchField) return
+        searchField = field
+        tracks = emptyList()
+        error = null
+        canLoadMore = false
+        page = 1
+        if (query.isNotBlank()) search()
     }
 
     fun search(loadMore: Boolean = false) {
@@ -63,13 +73,18 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         if (searchText.isEmpty() || isSearching) return
         val targetPage = if (loadMore) page + 1 else 1
         val source = searchSource
+        val field = searchField
+        if (!loadMore) {
+            tracks = emptyList()
+            canLoadMore = false
+        }
         isSearching = true
         error = null
         viewModelScope.launch {
             try {
                 val result = when (source) {
-                    SearchSource.AUDIUS -> audiusSearch.search(searchText, targetPage)
-                    SearchSource.ITUNES -> itunesSearch.search(searchText, targetPage)
+                    SearchSource.AUDIUS -> audiusSearch.search(searchText, targetPage, field)
+                    SearchSource.ITUNES -> itunesSearch.search(searchText, targetPage, field)
                 }
                 tracks = if (loadMore) (tracks + result.tracks).distinctBy { it.id }
                     else result.tracks

@@ -10,15 +10,15 @@ import java.net.URLEncoder
 
 /** Artist-published songs. Downloads are offered only when the creator enables them. */
 class AudiusRepository {
-    suspend fun search(query: String, page: Int): SearchResult = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, page: Int, field: SearchField): SearchResult = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=20&offset=${(page-1)*20}&app_name=Vyntra"
+        val url = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=20&offset=${(page-1)*20}&app_name=Vyntra&sort_method=relevant"
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.3 (Android music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.1.4 (Android music discovery)")
         }
         try {
             val status = connection.responseCode
@@ -45,6 +45,7 @@ class AudiusRepository {
                     val permitted = enabled && !hasGate
                     val stream = "https://api.audius.co/v1/tracks/$id/stream?app_name=Vyntra"
                     val download = if (permitted) "https://api.audius.co/v1/tracks/$id/download?app_name=Vyntra&format=mp3" else null
+                    if (!permitted) continue // Downloads tab means truly downloadable tracks.
                     add(AudioTrack(
                         id = "audius_$id",
                         title = obj.optString("title").ifBlank { "Untitled song" },
@@ -62,7 +63,10 @@ class AudiusRepository {
                     ))
                 }
             }
-            SearchResult(songs, results.length() >= 20)
+            val ranked = songs.mapNotNull { track ->
+                SearchRelevance.score(query, track.title, track.creator, field)?.let { it to track }
+            }.sortedByDescending { it.first }.map { it.second }
+            SearchResult(ranked, results.length() >= 20)
         } finally { connection.disconnect() }
     }
 }

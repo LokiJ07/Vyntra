@@ -10,23 +10,32 @@ import java.net.URLEncoder
 
 /** Official artist/song discovery. Apple previews are streaming-only promotional material. */
 class ItunesRepository {
-    suspend fun search(query: String, page: Int): SearchResult = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, page: Int, field: SearchField): SearchResult = withContext(Dispatchers.IO) {
         if (page > 1) return@withContext SearchResult(emptyList(), false)
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = "https://itunes.apple.com/search?term=$encoded&country=PH&media=music&entity=song&limit=50"
+        val attribute = field.apiAttribute?.let { "&attribute=$it" }.orEmpty()
+        val matches = searchCountry(encoded, query, field, attribute, "PH")
+        // An empty Philippine storefront result is not proof the song does not exist.
+        val songs = if (matches.isEmpty()) searchCountry(encoded, query, field, attribute, "US") else matches
+        SearchResult(songs, false)
+    }
+
+    private fun searchCountry(encoded: String, query: String, field: SearchField,
+                              attribute: String, country: String): List<AudioTrack> {
+        val url = "https://itunes.apple.com/search?term=$encoded&country=$country&media=music&entity=song$attribute&limit=100"
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.3 (music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.1.4 (music discovery)")
         }
-        try {
+        return try {
             val status = connection.responseCode
             if (status == 429) error("Official catalog is rate-limiting requests. Try later.")
             if (status !in 200..299) error("Official catalog search failed (HTTP $status).")
             val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val items = JSONObject(body).optJSONArray("results") ?: return@withContext SearchResult(emptyList(), false)
+            val items = JSONObject(body).optJSONArray("results") ?: return emptyList()
             val songs = buildList {
                 for (index in 0 until items.length()) {
                     val obj = items.optJSONObject(index) ?: continue
@@ -52,7 +61,9 @@ class ItunesRepository {
                     ))
                 }
             }
-            SearchResult(songs, false)
+            songs.distinctBy { it.id }.mapNotNull { track ->
+                SearchRelevance.score(query, track.title, track.creator, field)?.let { it to track }
+            }.sortedByDescending { it.first }.map { it.second }
         } finally { connection.disconnect() }
     }
 }
