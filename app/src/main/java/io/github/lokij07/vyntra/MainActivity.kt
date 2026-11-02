@@ -134,7 +134,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.2.3", color = Muted, fontSize = 12.sp)
+                    Text("v0.2.4", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
@@ -288,7 +288,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                             modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.AudioFile, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(7.dp))
-                            Text(if (vm.audioBusy) "Saving audio..." else "Save audio from supported link")
+                            Text(if (vm.audioBusy) "Saving audio..." else "Try saving audio from supported link")
                         }
                         if (vm.audioBusy) {
                             Spacer(Modifier.height(7.dp))

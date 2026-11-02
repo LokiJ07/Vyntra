@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import dev.ffmpegkit_maintained.ytdlp.YtDlp
 import dev.ffmpegkit_maintained.ytdlp.YtDlpRequest
 import io.github.lokij07.vyntra.model.SavedAudio
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -16,9 +17,9 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Downloads one audio-only stream from supported sources into app-private temp storage,
- * then publishes to Music/Vyntra through MediaStore (so other music players can see it).
- * Does NOT bypass DRM, grant download rights, or guarantee site compatibility.
+ * Downloads source-permitted audio to a temporary file, validates the container,
+ * and publishes the finished file to Music/Vyntra using MediaStore.
+ * Does not defeat source authorization, DRM, or YouTube 403 restrictions.
  */
 class LocalAudioDownloader(private val context: Context) {
     private val prefs = context.getSharedPreferences("vyntra_audio_history", Context.MODE_PRIVATE)
@@ -34,19 +35,29 @@ class LocalAudioDownloader(private val context: Context) {
                 .addOption("--no-playlist")
                 .addOption("--no-mtime")
                 .addOption("--retries", "2")
+                .addOption("--fragment-retries", "2")
+                .addOption("--socket-timeout", "20")
                 .addOption("-f", "bestaudio[ext=m4a]/bestaudio")
-            val response = YtDlp.execute(request) { percentage, _, _ ->
-                onProgress(percentage.toInt().coerceIn(0, 99))
+
+            val response = try {
+                YtDlp.execute(request) { percentage, _, _ ->
+                    onProgress(percentage.toInt().coerceIn(0, 99))
+                }
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                throw IllegalStateException(AudioDownloadProblem.explain(ex.message), ex)
             }
             check(response.isSuccess) {
-                "The source did not provide an accessible audio download (exit code ${response.exitCode}). " +
-                    "It may be restricted, unavailable or require permission."
+                "The audio extractor returned exit code ${response.exitCode}. The source may be restricted or unavailable."
             }
+
             val audio = workDir.listFiles().orEmpty().filter { file ->
-                file.isFile && file.length() > 0L &&
-                    AudioSourceRules.supportedAudioExtension(file.extension)
+                file.isFile && AudioSourceRules.supportedAudioExtension(file.extension) &&
+                    AudioFileValidation.looksLikeAudio(file)
             }.maxByOrNull { it.length() }
-                ?: error("No valid audio file was produced. Some sources block extraction or offer unsupported formats.")
+                ?: error("No valid audio file was produced. The source returned invalid or unsupported data.")
+
             val ext = audio.extension.lowercase()
             val cleanTitle = AudioSourceRules.safeDisplayName(title)
             val outputName = "$cleanTitle-${System.currentTimeMillis()}.$ext"
@@ -58,16 +69,21 @@ class LocalAudioDownloader(private val context: Context) {
             }
             val resolver = context.contentResolver
             val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
-                ?: error("Could not save audio to your Music folder.")
+                ?: error("Could not create an audio file in the Music folder.")
             try {
-                resolver.openOutputStream(uri)?.use { output -> audio.inputStream().use { it.copyTo(output) } }
-                    ?: error("Unable to write the audio file.")
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }, null, null)
+                val written = resolver.openOutputStream(uri)?.use { output ->
+                    audio.inputStream().use { source -> source.copyTo(output) }
+                } ?: error("Unable to open audio storage for writing.")
+                check(written == audio.length()) { "The saved file was incomplete ($written/${audio.length()} bytes)." }
+                val pendingResult = resolver.update(uri,
+                    ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }, null, null)
+                check(pendingResult > 0) { "Unable to finalize the downloaded audio file." }
             } catch (ex: Exception) {
                 resolver.delete(uri, null, null)
                 throw ex
             }
-            val saved = SavedAudio(uri.toString(), cleanTitle, outputName, AudioSourceRules.mimeType(ext), System.currentTimeMillis())
+            val saved = SavedAudio(uri.toString(), cleanTitle, outputName,
+                AudioSourceRules.mimeType(ext), System.currentTimeMillis())
             saveRecord(saved)
             onProgress(100)
             saved
@@ -91,8 +107,11 @@ class LocalAudioDownloader(private val context: Context) {
         val array = JSONArray()
         (listOf(saved) + list()).take(100).forEach { audio ->
             array.put(JSONObject().apply {
-                put("uri", audio.uri); put("title", audio.title); put("fileName", audio.fileName)
-                put("mime", audio.mime); put("dateMillis", audio.dateMillis)
+                put("uri", audio.uri)
+                put("title", audio.title)
+                put("fileName", audio.fileName)
+                put("mime", audio.mime)
+                put("dateMillis", audio.dateMillis)
             })
         }
         prefs.edit().putString("saved_audio", array.toString()).apply()

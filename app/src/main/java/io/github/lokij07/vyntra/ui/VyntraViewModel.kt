@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.lokij07.vyntra.data.AudioDownloadProblem
 import io.github.lokij07.vyntra.data.AudioFiles
 import io.github.lokij07.vyntra.data.AudioSourceRules
 import io.github.lokij07.vyntra.data.LocalAudioDownloader
@@ -68,6 +69,12 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
             audioStatus = "Enter a valid HTTPS link. A song title alone is not a URL."
             return
         }
+        // Direct audio files should use DownloadManager, not the video extraction engine.
+        if (AudioFiles.directLinkExtension(url) != null) {
+            val result = downloadDirectLink()
+            audioStatus = "Direct file: $result"
+            return
+        }
         audioBusy = true
         audioProgress = 0
         audioStatus = "Preparing audio engine..."
@@ -90,7 +97,7 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
                 audioStatus = "Audio transfer stopped."
                 throw ex
             } catch (ex: Exception) {
-                audioStatus = "Audio download failed: ${ex.message ?: "Network/source error"}"
+                audioStatus = "Audio download failed: ${AudioDownloadProblem.explain(ex.message)}"
             } finally { audioBusy = false }
         }
     }
