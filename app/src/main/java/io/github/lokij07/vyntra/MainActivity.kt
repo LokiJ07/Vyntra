@@ -130,7 +130,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1.2", color = Muted, fontSize = 12.sp)
+                    Text("v0.1.3", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser, onCopy = { value ->
@@ -166,13 +166,13 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                     Text("Your music.\nYour world.", fontSize = 31.sp, lineHeight = 36.sp,
                         fontWeight = FontWeight.ExtraBold, color = Color.White)
                     Spacer(Modifier.height(11.dp))
-                    Text("Explore openly licensed audio and save it for offline listening.",
+                    Text("Discover real artists and songs. Download only when the creator allows it.",
                         fontSize = 13.sp, lineHeight = 19.sp, color = Color(0xFFE6DDF9))
                 }
             }
         }
         item {
-            SectionTitle("Search audio", "Openly licensed audio • no API key")
+            SectionTitle("Search songs & artists", "Artist music + official catalog • no account required")
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SearchSource.entries.forEach { source ->
@@ -184,10 +184,10 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                     )
                 }
             }
-            if (vm.searchSource == SearchSource.OPENVERSE) {
-                Text("Openverse has a reported API timeout issue. Use Wikimedia Commons if searches fail.",
-                    color = Color(0xFFFFCB8F), fontSize = 12.sp)
-            }
+            Text(if (vm.searchSource == SearchSource.AUDIUS)
+                    "Artist-uploaded tracks. Download is available only when the artist enables it."
+                 else "Official OPM/international songs. Previews stream only; full music is available from the store.",
+                 color = Muted, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -237,7 +237,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 }
             }
         }
-        item { SectionTitle("Explore tracks", "Check each source's license before reuse") }
+        item { SectionTitle("Explore songs", "Search song titles or artists such as SB19, Bruno Mars, OPM") }
         if (vm.isSearching && vm.tracks.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
@@ -247,7 +247,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             item { Text(message, color = Color(0xFFFFABAB), fontSize = 13.sp) }
         }
         if (!vm.isSearching && vm.error == null && vm.tracks.isEmpty()) {
-            item { EmptyCard("No matching downloadable HTTPS audio found. Try another search.") }
+            item { EmptyCard("No matching songs found in this catalog. Try the other category.") }
         }
         items(vm.tracks, key = { it.id }) { track ->
             TrackCard(track,
@@ -272,7 +272,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            Text("Only freely licensed audio indexed by the selected provider is available. Check each file's license and original source.",
+            Text("Audius download buttons respect creator download settings. Official catalog previews are streamed only; purchase or listen through the linked store.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
                 modifier = Modifier.padding(bottom = 14.dp))
         }
@@ -300,22 +300,36 @@ private fun TrackCard(track: AudioTrack, isPlaying: Boolean, isLoading: Boolean,
                     Text(track.creator, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         color = Muted, fontSize = 12.sp)
                 }
-                IconButton(onClick = onPreview) {
+                IconButton(onClick = onPreview, enabled = track.audioUrl.isNotBlank()) {
                     if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     else Icon(if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Stop preview" else "Preview", tint = Cyan)
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("${track.licenseLabel.ifBlank { "License details at source" }} • ${track.provider}",
+            Text("${track.licenseLabel.ifBlank { "Details at source" }} • ${track.provider}",
                 color = Muted, fontSize = 11.sp, maxLines = 2)
+            if (track.isStoreCatalog) {
+                Spacer(Modifier.height(5.dp))
+                Text("Preview provided courtesy of iTunes • streamed only",
+                    color = Cyan, fontSize = 11.sp)
+            }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onDownload, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    Icon(Icons.Default.Download, null, Modifier.size(17.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("Download", fontSize = 12.sp)
+                if (track.isStoreCatalog) {
+                    Button(onClick = onSource, modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Icon(Icons.Default.OpenInNew, null, Modifier.size(17.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("View on iTunes", fontSize = 12.sp)
+                    }
+                } else {
+                    Button(onClick = onDownload, enabled = track.downloadable,
+                        modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Icon(Icons.Default.Download, null, Modifier.size(17.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(if (track.downloadable) "Download" else "Not downloadable", fontSize = 12.sp)
+                    }
                 }
                 IconButton(onClick = onSource) {
                     Icon(Icons.Default.OpenInNew, contentDescription = "Visit source", tint = Muted)
@@ -434,8 +448,8 @@ private fun AboutPage(openUrl: (String) -> Unit) {
             }
         }
         item { SectionTitle("How it works", "Independent app • LokiTunes-friendly") }
-        item { AboutCard("1 • Discover", "Search Wikimedia Commons audio by default. Openverse can be selected when its API is available. No account or API key is required.") }
-        item { AboutCard("2 • Check permissions", "View the original source, read the license and copy the attribution before using a song.") }
+        item { AboutCard("1 • Discover", "Search artist-uploaded Audius music or switch to official iTunes song listings, including OPM and international artists.") }
+        item { AboutCard("2 • Check permissions", "Audius creators control whether their track can be downloaded. Official iTunes listings are browse, preview and store-link only.") }
         item { AboutCard("3 • Download", "Authorized audio downloads go to the shared Downloads/Vyntra folder using Android Download Manager.") }
         item { AboutCard("4 • Listen offline", "Tap Play / Open to choose an installed audio player. LokiTunes may also discover these files in its local library scan.") }
         item {
@@ -443,16 +457,16 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Music licensing matters", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(7.dp))
-                    Text("Vyntra does not bypass streaming DRM or download from paid streaming services. Search results come from third parties, so check permissions and accuracy at the source. Creative Commons terms can require artist credit or restrict commercial use.",
+                    Text("Vyntra does not rip paid streaming tracks or download Apple preview clips. Audius downloads require artist permission. Check the source rights before reuse.",
                         color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
                     Spacer(Modifier.height(10.dp))
-                    OutlinedButton(onClick = { openUrl("https://openverse.org/") }) {
-                        Text("About Openverse")
+                    OutlinedButton(onClick = { openUrl("https://audius.co/") }) {
+                        Text("About Audius")
                     }
                 }
             }
         }
-        item { Text("Vyntra v0.1.2 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.1.3 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 

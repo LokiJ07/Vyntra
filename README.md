@@ -1,142 +1,44 @@
-# VYNTRA 🎵
+# Vyntra v0.1.3 — Music Catalog Update 🎵
 
-**Discover. Download. Listen.**
+This version replaces the default **Wikimedia Commons sound archive** search with two music-oriented experiences:
 
-A separate, free, open-source Android music discovery and download companion. Designed to work alongside **LokiTunes** without changing it.
+- **Downloadable music — Audius:** Search for actual artist-uploaded tracks. A download button is enabled only when the creator marks that track downloadable and it has no download gate. Available songs depend on the Audius artist catalog, which may not include a particular OPM or commercial artist. Search results can also be streamed in-app, subject to Audius availability and terms.
+- **Official songs — iTunes Search API (Philippines storefront):** Search popular Filipino (OPM) and international artists and track names. Results have official store links and streaming-only promotional previews, **not** full-song downloading. The source link must remain available beside each preview. [Apple's terms](https://performance-partners.apple.com/search-api) prohibit downloading, caching or synchronizing previews.
 
-> **Status:** v0.1.2 audio search workaround. Uses Wikimedia Commons by default because the Openverse search service has been timing out. Same Android app ID and release signing as v0.1.1. Source code included; APK will be produced by the GitHub Actions workflow once CI is green. Android build has **not** been executed in the provided environment.
+The app does **not** rip Spotify/YouTube/Apple Music and does not bypass DRM. A successful song search is not a promise that its full file is free to download. The user can still download authorized direct HTTPS audio files in the Direct Link section.
 
-## Features
+## Upgrade from v0.1.2
 
-- 🎧 Discover openly licensed audio with the **Wikimedia Commons audio search**, with optional Openverse search, without an API key.
-- ▶️ Stream a quick preview when the source supports Android MediaPlayer.
-- 🔗 Download authorized direct HTTPS `.mp3`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.wav`, or `.aac` files.
-- 📥 Browse download status and progress from Android's system Download Manager.
-- 🗂️ Save files in **Downloads/Vyntra/** (shared public Downloads folder).
-- 🎵 Open finished audio in an installed player. LokiTunes can discover songs during its own local media-library scan.
-- 🧾 View the original source and license; copy track attribution.
-- 🌙 Compose dark UI with violet/cyan accents.
-
-## Requirements
-
-- Android **10 (API 29)** or newer.
-- Internet access for discovery and downloading.
-- GitHub Actions or Android Studio, JDK 17, Android SDK 35.
-- Android Gradle Plugin **8.9.2**, Gradle **8.11.1**, Kotlin **2.0.21**.
-
-## Before the first CI build: set up private APK signing (required)
-
-**Read `SIGNING_SETUP.md` first.** The main-branch build intentionally requires
-`VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` repository secrets.
-The `.jks` private key is provided separately from the source ZIP and must
-never be committed. Every main-branch CI run now generates a **signed release
-APK**, not a randomly signed debug APK. PR builds run without signing secrets
-and do not publish installable artifacts.
-
-The Android SDK fix removes the old `android-actions/setup-android@v3` action
-(which was failing because it requested the removed SDK `tools` package).
-Instead GitHub's Ubuntu runner SDK command-line tools install API 35 and
-Build Tools 35.0.0 explicitly.
-
-## Updating your existing GitHub repository (you already pushed v0.1.0)
-
-1. **Set the two GitHub repository secrets first** (see `SIGNING_SETUP.md`).
-2. Extract `Vyntra-v0.1.2-Android-Source-FIXED.zip`.
-3. Copy the **contents** of the `Vyntra-v0.1.2` folder into your existing local `Vyntra` Git repository. Keep the existing `.git/` folder untouched; do **not** copy the private `.jks` there.
-4. From Git Bash **inside your existing Vyntra repository**:
+1. Extract this **source-only** ZIP into your existing Vyntra local repository (preserve `.git`).
+2. **Keep your existing GitHub signing secrets** `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD`. **Do not create a new key**.
+3. Push your changes:
 
    ```bash
    git add -A
-   git commit -m "fix: Android SDK setup and stable APK signing"
+   git commit -m "feat: v0.1.3 music-focused Audius and official song search"
    git push origin main
    ```
 
-5. Wait for the GitHub Actions run to finish, then download the **SIGNED** APK artifact.
+4. GitHub Actions builds a stable-key signed APK artifact `Vyntra-v0.1.3-SIGNED-build-...` with a new `versionCode` using the run number.
+5. Install that APK over your existing Vyntra. An in-place update requires the same app ID, same signing certificate, and a higher versionCode.
 
-If you still have a GitHub checkout but not the local folder, clone your existing
-repository first (`git clone https://github.com/LokiJ07/Vyntra.git`). Do not
-create a second unrelated repository with the same name.
+## What's preserved
 
-## Build without local Android Studio (recommended)
+- Original Vyntra application ID `io.github.lokij07.vyntra`
+- Stable private APK signing through the previous two GitHub Secrets
+- Existing download history, Android Download Manager integration, and authorized direct-audio-URL downloads
+- LokiTunes interoperability for locally downloaded songs
+- Android 10+ support, Compose dark UI, GitHub Actions SDK setup fix
 
-1. Create an empty repository named `Vyntra` on GitHub. Don't add a README or `.gitignore` on GitHub.
-2. Extract this zip and open a terminal in the extracted **Vyntra-v0.1.2** folder.
-3. Push the project:
+## Test checklist
 
-   ```bash
-   git init
-   git add .
-   git commit -m "fix: Android SDK setup and persistent release signing"
-   git branch -M main
-   git remote add origin https://github.com/LokiJ07/Vyntra.git
-   git push -u origin main
-   ```
+1. Select **Official songs** and search **SB19** or **Bruno Mars** — results should have proper track and artist labels, and a **View on iTunes** button, not a free full-song Download button.
+2. Select **Downloadable music** and search **lofi** or **electronic** — shows music tracks from Audius. Some are stream-only; only creator-enabled tracks show an active Download button.
+3. Download an authorized track, confirm it appears in Downloads/Vyntra, and then play in LokiTunes.
+4. Confirm your signing certificate is unchanged from v0.1.2, and the APK updates in place.
 
-4. In GitHub: **Actions → Vyntra Android CI → latest run → Artifacts → Vyntra-v0.1.2-SIGNED-build-...**.
-5. Download and extract the workflow artifact. Transfer the resulting `Vyntra-v0.1.2-build-N.apk` to your Android device and install it. This stable-key signed APK can receive future signed APK updates without uninstalling, provided the key remains the same and the versionCode increases.
+## Validation notes
 
-**Important:** The provided project uses a version-pinned system Gradle installation in GitHub Actions instead of including the Gradle wrapper JAR. For local CLI debug builds, install Gradle 8.11.1 and run `gradle :app:assembleDebug`. **Do not distribute locally signed debug APKs as Vyntra updates.** Android Studio can also use a locally installed Gradle distribution. To generate a conventional wrapper from a local Gradle installation: `gradle wrapper --gradle-version 8.11.1`.
+Source-level validation only. The complete Android Gradle build and live API requests have not been run in this execution environment. GitHub Actions and on-device testing are required. APIs can change or rate-limit and do not guarantee any particular artist's catalog will appear.
 
-## How it works
-
-- **Discover:** Type a search term, tap Search, listen to a source preview where supported, inspect the source's license and choose Download.
-- **Direct link:** Paste an actual HTTPS URL to an audio file with a recognized extension. Vyntra does not extract audio from YouTube/Spotify or bypass DRM.
-- **Downloads:** Review status; open the completed audio with your preferred installed music app.
-- **LokiTunes:** If LokiTunes is configured to scan public audio files, rescan its library. Vyntra does not require LokiTunes to be installed.
-
-## Copyright / license
-
-Vyntra only supports downloads where rights permit them. Openverse aggregates third-party listings, and some metadata can be inaccurate, so confirm license/attribution requirements at the original source. Different Creative Commons licenses can require attribution or restrict certain uses. Downloading and playback do not remove those requirements. Direct link downloads are only for files you own or are authorized to download. API usage must comply with the source provider's terms.
-
-The Vyntra **source code** is provided under MIT; this does *not* cover third-party music.
-
-## Scope of v0.1.2
-
-- No Spotify/YouTube ripping, no DRM bypass, and no guarantee any particular commercial song is indexed.
-- Some Openverse links can return a protected/unavailable file, and preview support depends on remote format and server.
-- The system Download Manager handles background transfers. Vyntra supports canceling pending downloads, **not pausing/resuming** individual transfers.
-- Recorded history is local to Vyntra. Uninstalling Vyntra does not intentionally delete files in the shared Downloads folder.
-- This project is not yet a verified, publicly released APK. Check the CI build and test downloads on a real Android phone before publishing a release.
-
-## Folder structure
-
-```text
-Vyntra/
-├── .github/workflows/android.yml
-├── SIGNING_SETUP.md
-├── app/build.gradle.kts
-├── app/src/main/java/io/github/lokij07/vyntra/
-│   ├── MainActivity.kt
-│   ├── data/{AudioFiles,DownloadsRepository,OpenverseRepository}.kt
-│   ├── model/{AudioTrack,DownloadRecord}.kt
-│   └── ui/{PreviewPlayer,VyntraViewModel}.kt
-├── app/src/test/...
-├── build.gradle.kts
-└── settings.gradle.kts
-```
-
-Made as an independent companion to LokiTunes. 💜
-
-## v0.1.2: Openverse timeout fix
-
-Openverse had a reported backend incident in October 2026: https://github.com/WordPress/openverse/issues/5649
-The app previously used only Openverse, causing search to time out on Android even when GitHub Actions was green.
-
-- **Default audio source is now Wikimedia Commons**, using its public MediaWiki API (no API key).
-- A **search source selector** allows you to switch to Openverse later when it is working.
-- More specific timeout, HTTP 429 and API error messages.
-- Wikimedia results are restricted to supported audio MIME types and HTTPS downloadable files.
-- The existing direct-URL downloader remains unchanged and works independently of search providers.
-- The signing setup, application ID, and workflow remain the same: **do not create a new keystore**.
-- Wikimedia Commons has a smaller/different music catalog than commercial music services. Popular copyrighted tracks are not guaranteed to be available.
-
-### Update your installed Vyntra (no uninstall)
-
-1. Extract the **source-only** `Vyntra-v0.1.2-Android-Source.zip` over your existing local Vyntra Git repository. Keep `.git/` and GitHub secrets intact.
-2. In Git Bash: `git add -A && git commit -m "fix: fallback audio search using Wikimedia Commons" && git push origin main`.
-3. Download the newly built **SIGNED** APK artifact from GitHub Actions.
-4. Install it over the existing signed Vyntra v0.1.1, using the same signing key, with a higher `versionCode` from the GitHub Actions run.
-
-If your installed app was signed using a different key, Android will still refuse an in-place update.
-
-**Test status:** Source-level inspection performed, but the complete Android Gradle build and live provider endpoints cannot be run from this environment. Verify the workflow goes green, then test Wikimedia search on device.
+Do not commit your private `.jks`, passwords, or GitHub Secrets.

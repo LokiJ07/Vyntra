@@ -29,7 +29,7 @@ android {
         // Each Actions run increments the code, enabling install-over-existing updates.
         // Never reuse the same versionCode for a new public release.
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 3
-        versionName = "0.1.2"
+        versionName = "0.1.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

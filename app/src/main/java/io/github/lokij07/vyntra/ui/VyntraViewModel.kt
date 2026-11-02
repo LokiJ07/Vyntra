@@ -10,25 +10,26 @@ import androidx.lifecycle.viewModelScope
 import io.github.lokij07.vyntra.data.AudioFiles
 import io.github.lokij07.vyntra.data.DownloadsRepository
 import io.github.lokij07.vyntra.data.OpenverseRepository
-import io.github.lokij07.vyntra.data.WikimediaCommonsRepository
+import io.github.lokij07.vyntra.data.AudiusRepository
+import io.github.lokij07.vyntra.data.ItunesRepository
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 enum class SearchSource(val label: String) {
-    WIKIMEDIA("Wikimedia Commons"),
-    OPENVERSE("Openverse")
+    AUDIUS("Downloadable music"),
+    ITUNES("Official songs")
 }
 
 class VyntraViewModel(application: Application) : AndroidViewModel(application) {
-    private val openverseSearch = OpenverseRepository()
-    private val wikimediaSearch = WikimediaCommonsRepository()
-    var searchSource by mutableStateOf(SearchSource.WIKIMEDIA)
+    private val audiusSearch = AudiusRepository()
+    private val itunesSearch = ItunesRepository()
+    var searchSource by mutableStateOf(SearchSource.AUDIUS)
         private set
     private val downloader = DownloadsRepository(application)
 
-    var query by mutableStateOf("instrumental")
+    var query by mutableStateOf("pop")
     var link by mutableStateOf("")
     var tracks by mutableStateOf<List<AudioTrack>>(emptyList())
         private set
@@ -67,8 +68,8 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 val result = when (source) {
-                    SearchSource.WIKIMEDIA -> wikimediaSearch.search(searchText, targetPage)
-                    SearchSource.OPENVERSE -> openverseSearch.search(searchText, targetPage)
+                    SearchSource.AUDIUS -> audiusSearch.search(searchText, targetPage)
+                    SearchSource.ITUNES -> itunesSearch.search(searchText, targetPage)
                 }
                 tracks = if (loadMore) (tracks + result.tracks).distinctBy { it.id }
                     else result.tracks
@@ -84,18 +85,24 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun download(track: AudioTrack): String = try {
-        val ext = AudioFiles.extensionFor(track.fileType, track.audioUrl)
-        if (ext == null) {
-            "Unknown or unsupported audio format. Please check the original source."
-        } else {
-            downloader.enqueue(track.audioUrl, track.title, track.creator, track.licenseLabel,
-                track.licenseUrl, track.landingUrl, ext)
-            refreshDownloads()
-            "Added to Downloads/Vyntra"
+    fun download(track: AudioTrack): String {
+        if (!track.downloadable) {
+            return "This track is not offered for download. View the original source instead."
         }
-    } catch (e: Exception) {
-        "Download failed: ${e.message ?: "Unknown error"}"
+        return try {
+            val targetUrl = track.downloadUrl ?: track.audioUrl
+            val ext = AudioFiles.extensionFor(track.fileType, targetUrl)
+            if (ext == null) {
+                "Unknown or unsupported audio format. Please check the original source."
+            } else {
+                downloader.enqueue(targetUrl, track.title, track.creator, track.licenseLabel,
+                    track.licenseUrl, track.landingUrl, ext)
+                refreshDownloads()
+                "Added to Downloads/Vyntra"
+            }
+        } catch (e: Exception) {
+            "Download failed: ${e.message ?: "Unknown error"}"
+        }
     }
 
     fun downloadDirectLink(): String {
