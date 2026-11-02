@@ -32,9 +32,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.lokij07.vyntra.data.VideoLinks
 import io.github.lokij07.vyntra.data.SearchField
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
+import io.github.lokij07.vyntra.ui.VideoSearchPage
 import io.github.lokij07.vyntra.ui.PreviewPlayer
 import io.github.lokij07.vyntra.ui.VyntraViewModel
 import kotlinx.coroutines.delay
@@ -76,7 +78,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
     }
 
     LaunchedEffect(activeTab) {
-        if (activeTab == 1) {
+        if (activeTab == 2) {
             while (true) {
                 vm.refreshDownloads()
                 delay(1800)
@@ -94,9 +96,10 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
             snackbarHost = { SnackbarHost(snack) },
             bottomBar = {
                 NavigationBar(containerColor = Color(0xFF120F22)) {
-                    listOf(Triple("Discover", Icons.Default.Search, 0),
-                        Triple("Downloads", Icons.Default.Download, 1),
-                        Triple("About", Icons.Default.Info, 2)).forEach { (label, icon, idx) ->
+                    listOf(Triple("Music", Icons.Default.Search, 0),
+                        Triple("Videos", Icons.Default.SmartDisplay, 1),
+                        Triple("Downloads", Icons.Default.Download, 2),
+                        Triple("About", Icons.Default.Info, 3)).forEach { (label, icon, idx) ->
                         NavigationBarItem(
                             selected = activeTab == idx,
                             onClick = { preview.stop(); activeTab = idx },
@@ -131,16 +134,29 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.2.0", color = Muted, fontSize = 12.sp)
+                    Text("v0.2.1", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
-                        onQueued = { activeTab = 1; vm.refreshDownloads() },
+                        onQueued = { activeTab = 2; vm.refreshDownloads() },
                         onCopy = { value ->
                             clipboard.setText(AnnotatedString(value))
                             announce("Credits copied. This is NOT an audio download URL.")
                         })
-                    1 -> DownloadsPage(vm, ::announce, ::openBrowser)
+                    1 -> VideoSearchPage(
+                        initialQuery = vm.query,
+                        onCopyLink = { selected ->
+                            clipboard.setText(AnnotatedString(selected))
+                            announce("Actual video URL copied (not an MP3 file link).")
+                        },
+                        onUseLink = { selected ->
+                            vm.link = selected
+                            activeTab = 0
+                            announce("Video link added to the link field. Video-to-MP3 download is NOT supported.")
+                        },
+                        onNotice = ::announce
+                    )
+                    2 -> DownloadsPage(vm, ::announce, ::openBrowser)
                     else -> AboutPage(vm, ::announce, ::openBrowser)
                 }
             }
@@ -152,7 +168,8 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
 private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                          toast: (String) -> Unit, openUrl: (String) -> Unit,
                          onQueued: () -> Unit, onCopy: (String) -> Unit) {
-    var showDirectLink by remember { mutableStateOf(false) }
+    var showDirectLink by remember { mutableStateOf(vm.link.isNotBlank()) }
+    LaunchedEffect(vm.link) { if (vm.link.isNotBlank()) showDirectLink = true }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
@@ -220,19 +237,23 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                     TextButton(onClick = { showDirectLink = !showDirectLink }) {
                         Icon(Icons.Default.Link, null, tint = Cyan)
                         Spacer(Modifier.width(8.dp))
-                        Text("Advanced: direct audio file URL (optional)")
+                        Text("Link downloader (direct audio files)")
                         Spacer(Modifier.weight(1f))
                         Icon(if (showDirectLink) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = if (showDirectLink) "Collapse" else "Expand")
                     }
                     if (showDirectLink) {
-                        Text("NOT for song titles, copied credits, iTunes links, or normal music pages. Only paste a direct authorized audio file link ending in .mp3, .m4a, etc.",
+                        Text("Use the Videos tab to find and copy a real video link in-app. Video URLs are NOT MP3s and cannot be converted by this downloader. For downloads, paste a permitted direct .mp3/.m4a/.flac link.",
                             fontSize = 12.sp, color = Muted)
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(value = vm.link, onValueChange = { vm.link = it },
                             singleLine = true, modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("https://example.com/song.mp3") },
                             shape = RoundedCornerShape(12.dp))
+                        if (VideoLinks.selectedVideoUrl(vm.link) != null) {
+                            Text("Video link detected. This is a web page, not an audio file. Download is unavailable for this link.",
+                                fontSize = 12.sp, color = Color(0xFFFFB7B7))
+                        }
                         Spacer(Modifier.height(10.dp))
                         Button(onClick = {
                             val result = vm.downloadDirectLink()
@@ -531,9 +552,10 @@ private fun AboutPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl: (St
                 }
             }
         }
+        item { AboutCard("In-app video search", "The Videos tab opens YouTube's mobile search page inside Vyntra. Select a video to copy its real URL or move it into the link field. YouTube video pages cannot be downloaded as audio files by the built-in direct-file downloader; Vyntra does not bypass streaming restrictions.") }
         item { AboutCard("Save and play", "Authorized full audio files download through Android Download Manager to Downloads/Vyntra, then can be opened with LokiTunes or another player.") }
         item { AboutCard("Licensing", "Not every song is free to download. Apple previews are for store promotion, not saving. Respect artist licenses and source terms.") }
-        item { Text("Vyntra v0.2.0 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.2.1 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 

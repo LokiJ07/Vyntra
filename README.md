@@ -1,55 +1,40 @@
-# Vyntra v0.2.0 — Unified Music Search
+# Vyntra v0.2.1 — In-app Video Search (honest beta)
 
-**Android 10+ · Kotlin + Jetpack Compose · free/open-source**
+Android 10+ · Kotlin / Jetpack Compose · free / no in-app ads
 
-Vyntra searches multiple *real music catalogs* and offers downloads only when the music source/artist explicitly allows a full audio file to be downloaded. Downloaded files are saved in the Android shared `Downloads/Vyntra` directory for playback with LokiTunes or another local player.
+## What actually works in this source update
 
-## What is new
+- **Videos tab:** Search YouTube's *mobile web search* **inside Vyntra** (Android WebView). No YouTube/Chrome app switch, API key, subscription, or additional search service required. Search OPM and international music; YouTube determines what results are shown.
+- Tap any video in the embedded search, and Vyntra tracks its **real video URL**. Use **Copy Link** or **Use Link** to fill the Discover tab's link field. A search page is **never** mistaken for a video link.
+- Keep existing **Music** search (official catalogs + artist-enabled Audius/Jamendo downloads), Android DownloadManager, and download status/history.
+- Keep APK application ID, signing workflow, and signing secrets unchanged to support normal in-place upgrades, provided the new versionCode is higher.
 
-- One search box for **Filipino/OPM and international artists/song titles**. The search terms are not hardcoded and can be any language supported by providers.
-- **Downloadable songs** first: Audius (publicly downloadable artist tracks) plus Jamendo (when configured).
-- **Official songs & artists** second: iTunes Philippines **and** United States catalogs, with correct album art and official-store links.
-- Provider error isolation: if one provider times out, others may still return results; status messages appear below search results.
-- Download statuses and errors remain visible in Downloads. Genuine downloaded files can be opened using the installed audio player.
-- Optional Jamendo public **Client ID** field in About; no rebuild needed when entering or changing it.
-- Same `applicationId`, signing workflow and release signing secrets as v0.1.5, enabling normal install-over-installed updates when versionCode is higher.
+## Explicit limitation — do not confuse copying a video URL with downloading MP3
 
-## Important limits
+YouTube watch URLs are **video pages**, not direct `.mp3`/`.m4a` files. This release **does not extract or download audio from YouTube videos**. Selecting **Use Link** inserts the URL, but the direct-file downloader refuses it, with an explanation. Android DownloadManager can only save actual downloadable audio files, not convert video web pages into MP3.
 
-- **It is not possible to get free MP3 downloads of every commercial OPM/international release from the iTunes API.** iTunes results are *store links and previews*, not downloadable full tracks. Previews are not downloaded or cached.
-- Audius searches for music the creator allows to be downloaded; creators can disable downloads or gate access. Provider/server availability is not guaranteed.
-- Jamendo requires registering for a Client ID at https://devportal.jamendo.com/; Jamendo results will NOT load until you enter that ID in Vyntra → About → Jamendo downloads. Jamendo downloads are only offered when `audiodownload_allowed=true` AND a full download URL exists.
-- No third-party YouTube/Spotify ripper or DRM circumvention is included. Use sources in accordance with their license and terms.
-- API providers, available music and playback may differ by territory. Some provider download endpoints may return HTTP errors; status appears in Downloads.
+Music section's Download buttons work only for providers giving a permitted full-track URL. A downloaded audio file must display **Completed** in Downloads before it can be considered successful.
 
-## Updating your existing GitHub repo
+This is a concrete **in-app search and link-selection milestone**, not a claim that any copyrighted song can be downloaded for free. YouTube's developer policies restrict downloading and separating YouTube audio without prior written approval; see https://developers.google.com/youtube/terms/developer-policies . YouTube can also block or change behavior in embedded WebViews.
 
-1. Extract this ZIP. Copy **the contents of** `Vyntra-v0.2.0` into your existing local `Vyntra` checkout. Keep its `.git` folder, and **do not copy private `.jks` keys into it**.
-2. Retain your existing GitHub Actions secrets: `VYNTRA_KEYSTORE_BASE64`, `VYNTRA_KEYSTORE_PASSWORD`. Do not rotate them.
-3. In Git Bash from the root of the existing checkout:
+## How to update the existing repository
 
-   ```sh
+1. Extract the ZIP and copy the **contents of** `Vyntra-v0.2.1/` into the existing Vyntra Git repository, keeping the `.git` directory. Do **not** copy `vyntra-release.jks` or any signing password to Git.
+2. From Git Bash in the project:
+
+   ```bash
    git add -A
-   git commit -m "feat: Vyntra v0.2.0 unified music search"
+   git commit -m "feat: add in-app video search and link selection"
    git push origin main
    ```
-4. Actions → **Vyntra Android CI** → successful run → Artifacts → **Vyntra-v0.2.0-SIGNED-build-...** → install signed APK on your phone. The app ID and key have not been intentionally changed.
-5. Optional for more authorized downloads: visit the Jamendo developer portal, register an app, copy its public Client ID into **About → Jamendo downloads → Save ID**. This is an **ID**, not a password or bearer token. Entering it triggers Jamendo searches on the next search.
-6. Test searches such as `SB19`, `Cup of Joe`, `Bruno Mars`, `indie`, `rock`, or `lofi`. A song appearing in the official catalog does **not** imply it is also downloadable.
-7. To test a permitted download: use **Download** on a track under *Downloadable songs*, then **Downloads → Completed → Play / Open**. A queued download is NOT proof of success; wait for Completed.
 
-## Validation
+3. Watch **GitHub Actions → Vyntra Android CI**. Download the **signed release APK** only after a green build. Existing `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` secrets must remain unchanged. GitHub Actions increments versionCode using `GITHUB_RUN_NUMBER`.
+4. Install the new APK over existing Vyntra, provided the certificate/app ID match and the versionCode increased.
+5. Test **Videos → search `SB19 GENTO` → tap video → Copy Link / Use Link**. The **link field** should contain a real `https://www.youtube.com/watch?v=...` URL. YouTube video links cannot be downloaded as MP3 through this version.
+6. Separately test a permitted downloadable track in **Music**, then verify **Downloads → Completed**.
 
-- Pure Kotlin search/permission checks: 12 passed locally.
-- Repository files, ZIP and XML checked; Android SDK/Gradle build is **not available in the source-authoring environment**. The user's GitHub Actions run is the first full Android build and must be checked before treating this as a tested APK.
-- Live provider calls were not possible from this environment, so success of real searches and downloads must be confirmed on the Android device.
+## Validation and troubleshooting
 
-## References
+The `VideoLinks` normalizer is independently testable and has JUnit tests covering YouTube watch/short/shorts URL, encoded queries, and rejection of imposter domain or search page. This environment has no configured Android SDK, so full Gradle compilation and on-device WebView behavior still require **GitHub Actions / phone validation**. YouTube may show a sign-in, unavailable or consent page in a WebView depending on region/account/device.
 
-- Jamendo tracks: https://developer.jamendo.com/v3.0/tracks
-- Audius tracks: https://docs.audius.co/sdk/tracks/
-- Apple Search API terms: https://performance-partners.apple.com/search-api
-
-## Safety / signing
-
-The public ZIP must contain **no keystore, secret, password or private credential**. Keep the original v0.1.1 signing `.jks` backed up securely. Future versions must have higher versionCode and exactly the same Android app ID/signature to update without uninstall.
+The ZIP contains **source only**, no keystore or signing credentials. See `SIGNING_SETUP.md`.
