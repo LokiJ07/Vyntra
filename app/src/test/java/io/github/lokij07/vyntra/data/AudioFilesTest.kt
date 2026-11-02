@@ -17,5 +17,6 @@ class AudioFilesTest {
     @Test fun resolvesDeclaredMimeTypes() {
         assertEquals("flac", AudioFiles.extensionFor("audio/flac", "https://example.com/get"))
         assertEquals("mp3", AudioFiles.extensionFor("audio/mpeg", "https://example.com/get"))
+        assertEquals("ogg", AudioFiles.extensionFor("application/ogg", "https://upload.wikimedia.org/audio.oga"))
     }
 }

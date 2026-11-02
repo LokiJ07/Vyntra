@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import io.github.lokij07.vyntra.ui.PreviewPlayer
+import io.github.lokij07.vyntra.ui.SearchSource
 import io.github.lokij07.vyntra.ui.VyntraViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -129,7 +130,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1.1", color = Muted, fontSize = 12.sp)
+                    Text("v0.1.2", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser, onCopy = { value ->
@@ -171,7 +172,22 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            SectionTitle("Search audio", "Powered by Openverse • no API key")
+            SectionTitle("Search audio", "Openly licensed audio • no API key")
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SearchSource.entries.forEach { source ->
+                    FilterChip(
+                        selected = vm.searchSource == source,
+                        onClick = { preview.stop(); vm.selectSource(source) },
+                        enabled = !vm.isSearching,
+                        label = { Text(source.label, fontSize = 12.sp) }
+                    )
+                }
+            }
+            if (vm.searchSource == SearchSource.OPENVERSE) {
+                Text("Openverse has a reported API timeout issue. Use Wikimedia Commons if searches fail.",
+                    color = Color(0xFFFFCB8F), fontSize = 12.sp)
+            }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -256,7 +272,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            Text("Openverse indexes third-party sources. Availability, copyright and file formats vary.",
+            Text("Only freely licensed audio indexed by the selected provider is available. Check each file's license and original source.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
                 modifier = Modifier.padding(bottom = 14.dp))
         }
@@ -418,7 +434,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
             }
         }
         item { SectionTitle("How it works", "Independent app • LokiTunes-friendly") }
-        item { AboutCard("1 • Discover", "Search openly licensed audio with Openverse. No account or API key is required.") }
+        item { AboutCard("1 • Discover", "Search Wikimedia Commons audio by default. Openverse can be selected when its API is available. No account or API key is required.") }
         item { AboutCard("2 • Check permissions", "View the original source, read the license and copy the attribution before using a song.") }
         item { AboutCard("3 • Download", "Authorized audio downloads go to the shared Downloads/Vyntra folder using Android Download Manager.") }
         item { AboutCard("4 • Listen offline", "Tap Play / Open to choose an installed audio player. LokiTunes may also discover these files in its local library scan.") }
@@ -427,7 +443,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Music licensing matters", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(7.dp))
-                    Text("Vyntra does not bypass streaming DRM or download from paid streaming services. Openverse results are third-party records, so check permissions and accuracy at the source. Creative Commons terms can require artist credit or restrict commercial use.",
+                    Text("Vyntra does not bypass streaming DRM or download from paid streaming services. Search results come from third parties, so check permissions and accuracy at the source. Creative Commons terms can require artist credit or restrict commercial use.",
                         color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(onClick = { openUrl("https://openverse.org/") }) {
@@ -436,7 +452,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 }
             }
         }
-        item { Text("Vyntra v0.1.1 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.1.2 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 

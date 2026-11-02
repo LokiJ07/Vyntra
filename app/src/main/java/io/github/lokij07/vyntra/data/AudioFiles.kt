@@ -24,7 +24,10 @@ object AudioFiles {
         }
         val path = try { URI(url).path.orEmpty() } catch (_: Exception) { "" }
         val ext = path.substringAfterLast('.', "").lowercase()
-        return ext.takeIf { it in extensions }
+        return when (ext) {
+            "oga" -> "ogg" // Wikimedia Commons often uses the .oga Ogg audio extension.
+            else -> ext.takeIf { it in extensions }
+        }
     }
 
     fun directLinkExtension(url: String): String? {

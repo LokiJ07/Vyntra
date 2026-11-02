@@ -10,13 +10,22 @@ import androidx.lifecycle.viewModelScope
 import io.github.lokij07.vyntra.data.AudioFiles
 import io.github.lokij07.vyntra.data.DownloadsRepository
 import io.github.lokij07.vyntra.data.OpenverseRepository
+import io.github.lokij07.vyntra.data.WikimediaCommonsRepository
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+enum class SearchSource(val label: String) {
+    WIKIMEDIA("Wikimedia Commons"),
+    OPENVERSE("Openverse")
+}
+
 class VyntraViewModel(application: Application) : AndroidViewModel(application) {
-    private val audioSearch = OpenverseRepository()
+    private val openverseSearch = OpenverseRepository()
+    private val wikimediaSearch = WikimediaCommonsRepository()
+    var searchSource by mutableStateOf(SearchSource.WIKIMEDIA)
+        private set
     private val downloader = DownloadsRepository(application)
 
     var query by mutableStateOf("instrumental")
@@ -39,18 +48,32 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         search()
     }
 
+    fun selectSource(source: SearchSource) {
+        if (isSearching || searchSource == source) return
+        searchSource = source
+        tracks = emptyList()
+        canLoadMore = false
+        page = 1
+        search()
+    }
+
     fun search(loadMore: Boolean = false) {
         val searchText = query.trim()
         if (searchText.isEmpty() || isSearching) return
         val targetPage = if (loadMore) page + 1 else 1
+        val source = searchSource
         isSearching = true
         error = null
         viewModelScope.launch {
             try {
-                val found = audioSearch.search(searchText, targetPage)
-                tracks = if (loadMore) (tracks + found).distinctBy { it.id } else found
+                val result = when (source) {
+                    SearchSource.WIKIMEDIA -> wikimediaSearch.search(searchText, targetPage)
+                    SearchSource.OPENVERSE -> openverseSearch.search(searchText, targetPage)
+                }
+                tracks = if (loadMore) (tracks + result.tracks).distinctBy { it.id }
+                    else result.tracks
                 page = targetPage
-                canLoadMore = found.size >= 15 // Results that lack HTTPS are intentionally omitted.
+                canLoadMore = result.hasMore
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (ex: Exception) {

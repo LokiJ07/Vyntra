@@ -5,28 +5,39 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URLEncoder
 import java.net.URL
 
 /** Openverse indexes openly licensed audio. Always display the source and license. */
 class OpenverseRepository {
-    suspend fun search(query: String, page: Int): List<AudioTrack> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, page: Int): SearchResult = withContext(Dispatchers.IO) {
         val q = URLEncoder.encode(query.trim(), "UTF-8")
         val address = "https://api.openverse.org/v1/audio/?q=$q&page_size=20&page=$page"
         val connection = (URL(address).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
-            connectTimeout = 12000
-            readTimeout = 12000
+            connectTimeout = 6500
+            readTimeout = 9500
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.0 (Android; personal music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.1.2 (Android; personal music discovery)")
         }
         try {
-            val status = connection.responseCode
+            val status = try { connection.responseCode } catch (_: SocketTimeoutException) {
+                error("Openverse search is timing out (known service issue). Choose Wikimedia Commons instead.")
+            }
             if (status == 429) error("Openverse rate limit reached. Try again shortly.")
-            if (status !in 200..299) error("Search is unavailable (HTTP $status).")
-            val body = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            val array = JSONObject(body).optJSONArray("results") ?: return@withContext emptyList()
-            buildList {
+            if (status == 502 || status == 503 || status == 504) {
+                error("Openverse is temporarily unavailable (HTTP $status). Try Wikimedia Commons.")
+            }
+            if (status !in 200..299) error("Openverse search unavailable (HTTP $status).")
+            val body = try {
+                connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } catch (_: SocketTimeoutException) {
+                error("Openverse search is timing out (known service issue). Choose Wikimedia Commons instead.")
+            }
+            val json = JSONObject(body)
+            val array = json.optJSONArray("results") ?: return@withContext SearchResult(emptyList(), false)
+            val found = buildList {
                 for (index in 0 until array.length()) {
                     val obj = array.optJSONObject(index) ?: continue
                     val directUrl = obj.optString("url").trim()
@@ -50,6 +61,7 @@ class OpenverseRepository {
                     )
                 }
             }
+            SearchResult(found, page < json.optInt("page_count", page))
         } finally {
             connection.disconnect()
         }

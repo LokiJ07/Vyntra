@@ -1,4 +1,4 @@
-# Vyntra v0.1.1 – Private Signing Setup (Windows / GitHub)
+# Vyntra v0.1.2 – Private Signing Setup (Windows / GitHub)
 
 This release permanently fixes the "different signing certificate" problem for
 **future Vyntra updates** by using one private signing key on every GitHub build.
@@ -7,7 +7,7 @@ credential; keep a second backup in a safe place.
 
 ## 1. Download your private signing key
 
-Download `vyntra-release.jks` separately from the source code ZIP. Keep it
+Use the SAME `vyntra-release.jks` that signed your v0.1.1 APK. Do NOT generate a new key. Keep it
 somewhere safe on your own PC. Never put it in the source project or repository.
 The private signing key is NOT included in the public source ZIP.
 
@@ -37,7 +37,7 @@ Restore your previously saved key/password instead.
 ## 4. Push the changed source; find your signed APK
 
 Commit the updated files to your existing Vyntra repository. Then visit:
-Actions > Vyntra Android CI > latest run > Artifacts > Vyntra-v0.1.1-SIGNED-...
+Actions > Vyntra Android CI > latest run > Artifacts > Vyntra-v0.1.2-SIGNED-...
 
 Download/extract the artifact and install the APK on your Android device.
 All future Vyntra builds use this exact same signing certificate, provided you

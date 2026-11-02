@@ -4,11 +4,11 @@
 
 A separate, free, open-source Android music discovery and download companion. Designed to work alongside **LokiTunes** without changing it.
 
-> **Status:** v0.1.1 CI + stable signing update. Source code included; APK will be produced by the GitHub Actions workflow once CI is green. Android build has **not** been executed in the provided environment.
+> **Status:** v0.1.2 audio search workaround. Uses Wikimedia Commons by default because the Openverse search service has been timing out. Same Android app ID and release signing as v0.1.1. Source code included; APK will be produced by the GitHub Actions workflow once CI is green. Android build has **not** been executed in the provided environment.
 
 ## Features
 
-- 🎧 Discover openly licensed audio with the **Openverse audio search API**, without an API key.
+- 🎧 Discover openly licensed audio with the **Wikimedia Commons audio search**, with optional Openverse search, without an API key.
 - ▶️ Stream a quick preview when the source supports Android MediaPlayer.
 - 🔗 Download authorized direct HTTPS `.mp3`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.wav`, or `.aac` files.
 - 📥 Browse download status and progress from Android's system Download Manager.
@@ -41,8 +41,8 @@ Build Tools 35.0.0 explicitly.
 ## Updating your existing GitHub repository (you already pushed v0.1.0)
 
 1. **Set the two GitHub repository secrets first** (see `SIGNING_SETUP.md`).
-2. Extract `Vyntra-v0.1.1-Android-Source-FIXED.zip`.
-3. Copy the **contents** of the `Vyntra-v0.1.1` folder into your existing local `Vyntra` Git repository. Keep the existing `.git/` folder untouched; do **not** copy the private `.jks` there.
+2. Extract `Vyntra-v0.1.2-Android-Source-FIXED.zip`.
+3. Copy the **contents** of the `Vyntra-v0.1.2` folder into your existing local `Vyntra` Git repository. Keep the existing `.git/` folder untouched; do **not** copy the private `.jks` there.
 4. From Git Bash **inside your existing Vyntra repository**:
 
    ```bash
@@ -60,7 +60,7 @@ create a second unrelated repository with the same name.
 ## Build without local Android Studio (recommended)
 
 1. Create an empty repository named `Vyntra` on GitHub. Don't add a README or `.gitignore` on GitHub.
-2. Extract this zip and open a terminal in the extracted **Vyntra-v0.1.1** folder.
+2. Extract this zip and open a terminal in the extracted **Vyntra-v0.1.2** folder.
 3. Push the project:
 
    ```bash
@@ -72,8 +72,8 @@ create a second unrelated repository with the same name.
    git push -u origin main
    ```
 
-4. In GitHub: **Actions → Vyntra Android CI → latest run → Artifacts → Vyntra-v0.1.1-SIGNED-build-...**.
-5. Download and extract the workflow artifact. Transfer the resulting `Vyntra-v0.1.1-build-N.apk` to your Android device and install it. This stable-key signed APK can receive future signed APK updates without uninstalling, provided the key remains the same and the versionCode increases.
+4. In GitHub: **Actions → Vyntra Android CI → latest run → Artifacts → Vyntra-v0.1.2-SIGNED-build-...**.
+5. Download and extract the workflow artifact. Transfer the resulting `Vyntra-v0.1.2-build-N.apk` to your Android device and install it. This stable-key signed APK can receive future signed APK updates without uninstalling, provided the key remains the same and the versionCode increases.
 
 **Important:** The provided project uses a version-pinned system Gradle installation in GitHub Actions instead of including the Gradle wrapper JAR. For local CLI debug builds, install Gradle 8.11.1 and run `gradle :app:assembleDebug`. **Do not distribute locally signed debug APKs as Vyntra updates.** Android Studio can also use a locally installed Gradle distribution. To generate a conventional wrapper from a local Gradle installation: `gradle wrapper --gradle-version 8.11.1`.
 
@@ -90,7 +90,7 @@ Vyntra only supports downloads where rights permit them. Openverse aggregates th
 
 The Vyntra **source code** is provided under MIT; this does *not* cover third-party music.
 
-## Scope of v0.1.1
+## Scope of v0.1.2
 
 - No Spotify/YouTube ripping, no DRM bypass, and no guarantee any particular commercial song is indexed.
 - Some Openverse links can return a protected/unavailable file, and preview support depends on remote format and server.
@@ -116,3 +116,27 @@ Vyntra/
 ```
 
 Made as an independent companion to LokiTunes. 💜
+
+## v0.1.2: Openverse timeout fix
+
+Openverse had a reported backend incident in October 2026: https://github.com/WordPress/openverse/issues/5649
+The app previously used only Openverse, causing search to time out on Android even when GitHub Actions was green.
+
+- **Default audio source is now Wikimedia Commons**, using its public MediaWiki API (no API key).
+- A **search source selector** allows you to switch to Openverse later when it is working.
+- More specific timeout, HTTP 429 and API error messages.
+- Wikimedia results are restricted to supported audio MIME types and HTTPS downloadable files.
+- The existing direct-URL downloader remains unchanged and works independently of search providers.
+- The signing setup, application ID, and workflow remain the same: **do not create a new keystore**.
+- Wikimedia Commons has a smaller/different music catalog than commercial music services. Popular copyrighted tracks are not guaranteed to be available.
+
+### Update your installed Vyntra (no uninstall)
+
+1. Extract the **source-only** `Vyntra-v0.1.2-Android-Source.zip` over your existing local Vyntra Git repository. Keep `.git/` and GitHub secrets intact.
+2. In Git Bash: `git add -A && git commit -m "fix: fallback audio search using Wikimedia Commons" && git push origin main`.
+3. Download the newly built **SIGNED** APK artifact from GitHub Actions.
+4. Install it over the existing signed Vyntra v0.1.1, using the same signing key, with a higher `versionCode` from the GitHub Actions run.
+
+If your installed app was signed using a different key, Android will still refuse an in-place update.
+
+**Test status:** Source-level inspection performed, but the complete Android Gradle build and live provider endpoints cannot be run from this environment. Verify the workflow goes green, then test Wikimedia search on device.
