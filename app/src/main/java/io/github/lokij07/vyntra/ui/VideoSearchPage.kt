@@ -30,12 +30,13 @@ import io.github.lokij07.vyntra.data.VideoLinks
 fun VideoSearchPage(
     initialQuery: String,
     onCopyLink: (String) -> Unit,
-    onUseLink: (String) -> Unit,
+    onUseLink: (String, String) -> Unit,
     onNotice: (String) -> Unit
 ) {
     var query by remember { mutableStateOf(initialQuery) }
     var searchRequest by remember { mutableStateOf(VideoLinks.searchUrl(initialQuery.ifBlank { "music" })) }
     var selectedVideo by remember { mutableStateOf<String?>(null) }
+    var selectedTitle by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var canGoBack by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -55,7 +56,7 @@ fun VideoSearchPage(
     Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
         Text("Videos inside Vyntra", fontSize = 22.sp, style = MaterialTheme.typography.titleLarge)
         Text(
-            "Search and select videos without opening another app. YouTube video links are NOT MP3 download links.",
+            "Search videos in Vyntra. Select one, then use its link to try saving audio from permitted sources.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -86,7 +87,7 @@ fun VideoSearchPage(
                     Spacer(Modifier.width(4.dp))
                     Text("Copy Link", fontSize = 12.sp)
                 }
-                Button(onClick = { onUseLink(selectedVideo!!) }) {
+                Button(onClick = { onUseLink(selectedVideo!!, selectedTitle) }) {
                     Icon(Icons.Default.Link, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Use Link", fontSize = 12.sp)
@@ -112,6 +113,7 @@ fun VideoSearchPage(
                         webViewClient = object : WebViewClient() {
                             private fun recordLink(url: String?) {
                                 selectedVideo = VideoLinks.selectedVideoUrl(url)
+                selectedTitle = webViewRef?.title?.removeSuffix(" - YouTube")?.take(100).orEmpty()
                                 canGoBack = webViewRef?.canGoBack() == true
                             }
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -142,7 +144,7 @@ fun VideoSearchPage(
             )
         }
         Text(
-            "Web search and video playback depend on YouTube availability. Vyntra downloads only direct, authorized audio files; it does not rip YouTube audio.",
+            "Audio downloads may fail on restricted sites. Save only content you own or have permission to download.",
             fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(vertical = 8.dp)

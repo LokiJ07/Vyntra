@@ -1,40 +1,42 @@
-# Vyntra v0.2.1 — In-app Video Search (honest beta)
+# Vyntra v0.2.2 — In-app audio saving (experimental)
 
-Android 10+ · Kotlin / Jetpack Compose · free / no in-app ads
+Free, ad-free Android music discovery and downloads from **authorized/accessible** sources.
 
-## What actually works in this source update
+## New in v0.2.2
 
-- **Videos tab:** Search YouTube's *mobile web search* **inside Vyntra** (Android WebView). No YouTube/Chrome app switch, API key, subscription, or additional search service required. Search OPM and international music; YouTube determines what results are shown.
-- Tap any video in the embedded search, and Vyntra tracks its **real video URL**. Use **Copy Link** or **Use Link** to fill the Discover tab's link field. A search page is **never** mistaken for a video link.
-- Keep existing **Music** search (official catalogs + artist-enabled Audius/Jamendo downloads), Android DownloadManager, and download status/history.
-- Keep APK application ID, signing workflow, and signing secrets unchanged to support normal in-place upgrades, provided the new versionCode is higher.
+- The **Videos** tab still searches/opens videos inside Vyntra. Pick a video and tap **Use Link**.
+- In **Music > Link downloader**, confirm you have permission, and tap **Save audio from supported link**.
+- Uses the free MIT-licensed `dev.ffmpegkit-maintained:yt-dlp-android:2.0.2` Android engine.
+- Downloads an **audio-only** stream when the provider allows it. No paid API key, external app, ads, or server.
+- Shows extraction progress/errors and saves successful files via MediaStore into **Music/Vyntra**, visible to other players such as LokiTunes.
+- Native original formats are retained (M4A, Opus, WebM audio, MP3 etc); **MP3 transcoding is not bundled**, and compatibility varies by music player.
+- Existing direct-file DownloadManager remains unchanged (saves into **Downloads/Vyntra**).
+- Existing GitHub Actions signing secrets, package ID, and release workflow are preserved.
 
-## Explicit limitation — do not confuse copying a video URL with downloading MP3
+### Limits
 
-YouTube watch URLs are **video pages**, not direct `.mp3`/`.m4a` files. This release **does not extract or download audio from YouTube videos**. Selecting **Use Link** inserts the URL, but the direct-file downloader refuses it, with an explanation. Android DownloadManager can only save actual downloadable audio files, not convert video web pages into MP3.
+**Not a universal mainstream music downloader.** Search results on video services are not licensed audio downloads. YouTube and other sites can block extraction and have restrictions on downloading. Only download your own audio, openly licensed audio, or music you have permission to save. The user must confirm permission for each session. No bypass of DRM, login, payment, or restricted content is implemented.
 
-Music section's Download buttons work only for providers giving a permitted full-track URL. A downloaded audio file must display **Completed** in Downloads before it can be considered successful.
+The yt-dlp Android dependency is fairly large (~60–80 MB), and supports 64-bit Android (arm64-v8a / x86_64). Some services require cookies/login or specific network clients and may fail. `Save audio` is experimental until verified by real device tests. This app does not promise Spotify-style catalog availability or automatic MP3 conversion.
 
-This is a concrete **in-app search and link-selection milestone**, not a claim that any copyrighted song can be downloaded for free. YouTube's developer policies restrict downloading and separating YouTube audio without prior written approval; see https://developers.google.com/youtube/terms/developer-policies . YouTube can also block or change behavior in embedded WebViews.
+### Build
 
-## How to update the existing repository
+Keep your `.git` folder, overwrite the project source, and push to GitHub. Same `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` secrets. CI produces a signed APK on pushes to main. Do not upload the JKS/password to the repo.
 
-1. Extract the ZIP and copy the **contents of** `Vyntra-v0.2.1/` into the existing Vyntra Git repository, keeping the `.git` directory. Do **not** copy `vyntra-release.jks` or any signing password to Git.
-2. From Git Bash in the project:
+```bash
+git add -A
+git commit -m "feat: v0.2.2 in-app supported audio saving"
+git push origin main
+```
 
-   ```bash
-   git add -A
-   git commit -m "feat: add in-app video search and link selection"
-   git push origin main
-   ```
+### Smoke test (suggested)
 
-3. Watch **GitHub Actions → Vyntra Android CI**. Download the **signed release APK** only after a green build. Existing `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` secrets must remain unchanged. GitHub Actions increments versionCode using `GITHUB_RUN_NUMBER`.
-4. Install the new APK over existing Vyntra, provided the certificate/app ID match and the versionCode increased.
-5. Test **Videos → search `SB19 GENTO` → tap video → Copy Link / Use Link**. The **link field** should contain a real `https://www.youtube.com/watch?v=...` URL. YouTube video links cannot be downloaded as MP3 through this version.
-6. Separately test a permitted downloadable track in **Music**, then verify **Downloads → Completed**.
+Use a publicly downloadable, explicitly licensed audio or video URL as the first test; check that it appears under **Music/Vyntra**. Separately test a direct `.mp3` link through the existing direct download field. Next test a permitted video page; if it fails, send the exact `Audio download failed:` message.
 
-## Validation and troubleshooting
+### Security
 
-The `VideoLinks` normalizer is independently testable and has JUnit tests covering YouTube watch/short/shorts URL, encoded queries, and rejection of imposter domain or search page. This environment has no configured Android SDK, so full Gradle compilation and on-device WebView behavior still require **GitHub Actions / phone validation**. YouTube may show a sign-in, unavailable or consent page in a WebView depending on region/account/device.
+Only HTTPS URLs are accepted for extraction. Files download into a temporary app folder and are copied to Android MediaStore after a successful download; partial temp files are deleted. No private signing keys are bundled. The app does not request broad storage access.
 
-The ZIP contains **source only**, no keystore or signing credentials. See `SIGNING_SETUP.md`.
+### License
+
+See root LICENSE. Bundled third-party dependencies retain their respective licenses and notices.

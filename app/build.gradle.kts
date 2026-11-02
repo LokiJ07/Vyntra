@@ -28,8 +28,8 @@ android {
         targetSdk = 35
         // Each Actions run increments the code, enabling install-over-existing updates.
         // Never reuse the same versionCode for a new public release.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 7
-        versionName = "0.2.1"
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 8
+        versionName = "0.2.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -67,6 +67,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Free/MIT Android yt-dlp engine: downloads supported audio from permitted sources.
+    // Native audio is retained (M4A/WebM/Opus/etc); MP3 transcoding is not bundled.
+    implementation("dev.ffmpegkit-maintained:yt-dlp-android:2.0.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }

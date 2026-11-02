@@ -4,28 +4,44 @@ import android.app.Application
 import android.app.DownloadManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.lokij07.vyntra.data.AudioFiles
+import io.github.lokij07.vyntra.data.AudioSourceRules
+import io.github.lokij07.vyntra.data.LocalAudioDownloader
 import io.github.lokij07.vyntra.data.DownloadsRepository
 import io.github.lokij07.vyntra.data.JamendoPolicy
 import io.github.lokij07.vyntra.data.SearchField
 import io.github.lokij07.vyntra.data.UnifiedMusicSearch
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
+import io.github.lokij07.vyntra.model.SavedAudio
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class VyntraViewModel(application: Application) : AndroidViewModel(application) {
     private val searcher = UnifiedMusicSearch()
     private val downloader = DownloadsRepository(application)
+    private val audioDownloader = LocalAudioDownloader(application)
     private val prefs = application.getSharedPreferences("vyntra_settings", 0)
 
     var query by mutableStateOf("")
     var searchField by mutableStateOf(SearchField.BOTH)
         private set
     var link by mutableStateOf("")
+    var selectedVideoTitle by mutableStateOf("")
+    var audioBusy by mutableStateOf(false)
+        private set
+    var audioProgress by mutableIntStateOf(0)
+        private set
+    var audioStatus by mutableStateOf("No audio extraction started.")
+        private set
+    var savedAudio by mutableStateOf<List<SavedAudio>>(emptyList())
+        private set
     var jamendoClientId by mutableStateOf(prefs.getString("jamendo_client_id", "").orEmpty())
         private set
     var downloadableTracks by mutableStateOf<List<AudioTrack>>(emptyList())
@@ -44,6 +60,39 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         private set
 
     init { refreshDownloads() }
+
+    fun saveAudioFromLink() {
+        if (audioBusy) return
+        val url = link.trim()
+        if (!AudioSourceRules.validHttpsUrl(url)) {
+            audioStatus = "Enter a valid HTTPS link. A song title alone is not a URL."
+            return
+        }
+        audioBusy = true
+        audioProgress = 0
+        audioStatus = "Preparing audio engine..."
+        val displayName = selectedVideoTitle.ifBlank { "Vyntra Audio" }
+        viewModelScope.launch {
+            try {
+                val saved = audioDownloader.save(url, displayName) { progress ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        audioProgress = progress
+                        audioStatus = "Downloading audio: $progress%"
+                    }
+                }
+                savedAudio = audioDownloader.list()
+                audioStatus = "Saved ${saved.fileName} to Music/Vyntra. Open it below in Downloads."
+            } catch (ex: Exception) {
+                audioStatus = "Audio download failed: ${ex.message ?: "Network/source error"}"
+            } finally { audioBusy = false }
+        }
+    }
+
+    fun openSavedAudio(audio: SavedAudio): String? = try {
+        audioDownloader.open(audio)
+        null
+    } catch (ex: Exception) { ex.message ?: "Audio file could not be opened." }
+
 
     fun saveJamendoClientId(value: String): String {
         val sanitized = value.trim()
@@ -118,7 +167,7 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) { "Download failed: ${e.message ?: "Unknown error"}" }
     }
 
-    fun refreshDownloads() { downloads = downloader.refresh() }
+    fun refreshDownloads() { downloads = downloader.refresh(); savedAudio = audioDownloader.list() }
     fun cancel(record: DownloadRecord) { downloader.cancel(record); refreshDownloads() }
     fun open(record: DownloadRecord): String? = try {
         if (record.status != DownloadManager.STATUS_SUCCESSFUL) "Download not finished yet."

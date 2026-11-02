@@ -134,7 +134,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.2.1", color = Muted, fontSize = 12.sp)
+                    Text("v0.2.2", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
@@ -149,10 +149,11 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                             clipboard.setText(AnnotatedString(selected))
                             announce("Actual video URL copied (not an MP3 file link).")
                         },
-                        onUseLink = { selected ->
+                        onUseLink = { selected, title ->
                             vm.link = selected
+                            vm.selectedVideoTitle = title
                             activeTab = 0
-                            announce("Video link added to the link field. Video-to-MP3 download is NOT supported.")
+                            announce("Video link selected. Try Save Audio for permitted content.")
                         },
                         onNotice = ::announce
                     )
@@ -243,7 +244,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                             contentDescription = if (showDirectLink) "Collapse" else "Expand")
                     }
                     if (showDirectLink) {
-                        Text("Use the Videos tab to find and copy a real video link in-app. Video URLs are NOT MP3s and cannot be converted by this downloader. For downloads, paste a permitted direct .mp3/.m4a/.flac link.",
+                        Text("You can paste a direct MP3/M4A link, or use the Videos tab to select a source link. The audio engine saves native audio formats when the source permits it. YouTube and other services may block downloads.",
                             fontSize = 12.sp, color = Muted)
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(value = vm.link, onValueChange = { vm.link = it },
@@ -251,8 +252,8 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                             placeholder = { Text("https://example.com/song.mp3") },
                             shape = RoundedCornerShape(12.dp))
                         if (VideoLinks.selectedVideoUrl(vm.link) != null) {
-                            Text("Video link detected. This is a web page, not an audio file. Download is unavailable for this link.",
-                                fontSize = 12.sp, color = Color(0xFFFFB7B7))
+                            Text("Video page detected. The Save Audio engine will try a supported audio-only stream; success is not guaranteed.",
+                                fontSize = 12.sp, color = Cyan)
                         }
                         Spacer(Modifier.height(10.dp))
                         Button(onClick = {
@@ -264,6 +265,27 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                             Spacer(Modifier.width(6.dp))
                             Text("Download direct audio file")
                         }
+                        Spacer(Modifier.height(10.dp))
+                        var hasPermission by remember { mutableStateOf(false) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = hasPermission, onCheckedChange = { hasPermission = it })
+                            Text("I own this content or have permission to download its audio.",
+                                fontSize = 12.sp, color = Muted, lineHeight = 16.sp)
+                        }
+                        Button(onClick = { vm.saveAudioFromLink(); toast("Audio request started; check Downloads for progress.") },
+                            enabled = !vm.audioBusy && hasPermission && vm.link.trim().startsWith("https://"),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.AudioFile, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text(if (vm.audioBusy) "Saving audio..." else "Save audio from supported link")
+                        }
+                        if (vm.audioBusy) {
+                            Spacer(Modifier.height(7.dp))
+                            LinearProgressIndicator(progress = { vm.audioProgress / 100f },
+                                modifier = Modifier.fillMaxWidth())
+                        }
+                        Text(vm.audioStatus, fontSize = 12.sp,
+                            color = if (vm.audioStatus.startsWith("Audio download failed")) Color(0xFFFFB7B7) else Muted)
                     }
                 }
             }
@@ -423,8 +445,33 @@ private fun DownloadsPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl:
                 }
             }
         }
-        if (vm.downloads.isEmpty()) {
-            item { EmptyCard("Songs you download will appear here. They can also be found in your phone's Downloads/Vyntra folder.") }
+        item {
+            SectionTitle("Saved audio", "Audio extraction files are saved in Music/Vyntra")
+            if (vm.audioBusy) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(progress = { vm.audioProgress / 100f },
+                    modifier = Modifier.fillMaxWidth())
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(vm.audioStatus, fontSize = 12.sp, color = Muted)
+        }
+        items(vm.savedAudio, key = { it.uri }) { audio ->
+            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = CardColor)) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.MusicNote, null, tint = Cyan)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(audio.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(audio.fileName, color = Muted, fontSize = 11.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    TextButton(onClick = { vm.openSavedAudio(audio)?.let(toast) }) { Text("Play") }
+                }
+            }
+        }
+        item { SectionTitle("Direct downloads", "Files saved to Downloads/Vyntra") }
+        if (vm.downloads.isEmpty() && vm.savedAudio.isEmpty()) {
+            item { EmptyCard("Saved audio will appear here after a successful transfer. Try a permitted download link; unsupported sources may fail.") }
         }
         items(vm.downloads, key = { it.id }) { record ->
             DownloadCard(record, onOpen = { vm.open(record)?.let(toast) },
@@ -555,7 +602,7 @@ private fun AboutPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl: (St
         item { AboutCard("In-app video search", "The Videos tab opens YouTube's mobile search page inside Vyntra. Select a video to copy its real URL or move it into the link field. YouTube video pages cannot be downloaded as audio files by the built-in direct-file downloader; Vyntra does not bypass streaming restrictions.") }
         item { AboutCard("Save and play", "Authorized full audio files download through Android Download Manager to Downloads/Vyntra, then can be opened with LokiTunes or another player.") }
         item { AboutCard("Licensing", "Not every song is free to download. Apple previews are for store promotion, not saving. Respect artist licenses and source terms.") }
-        item { Text("Vyntra v0.2.1 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.2.2 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 
