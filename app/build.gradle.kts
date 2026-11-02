@@ -28,8 +28,8 @@ android {
         targetSdk = 35
         // Each Actions run increments the code, enabling install-over-existing updates.
         // Never reuse the same versionCode for a new public release.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 8
-        versionName = "0.2.2"
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 9
+        versionName = "0.2.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

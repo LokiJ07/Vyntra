@@ -76,12 +76,19 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val saved = audioDownloader.save(url, displayName) { progress ->
                     viewModelScope.launch(Dispatchers.Main) {
-                        audioProgress = progress
-                        audioStatus = "Downloading audio: $progress%"
+                        // A queued callback must not overwrite a final success/error notice.
+                        if (audioBusy && progress < 100) {
+                            audioProgress = progress
+                            audioStatus = "Downloading audio: $progress%"
+                        }
                     }
                 }
                 savedAudio = audioDownloader.list()
+                audioProgress = 100
                 audioStatus = "Saved ${saved.fileName} to Music/Vyntra. Open it below in Downloads."
+            } catch (ex: CancellationException) {
+                audioStatus = "Audio transfer stopped."
+                throw ex
             } catch (ex: Exception) {
                 audioStatus = "Audio download failed: ${ex.message ?: "Network/source error"}"
             } finally { audioBusy = false }

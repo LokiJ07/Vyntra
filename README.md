@@ -1,42 +1,30 @@
-# Vyntra v0.2.2 — In-app audio saving (experimental)
+# Vyntra v0.2.3
 
-Free, ad-free Android music discovery and downloads from **authorized/accessible** sources.
+A free/ad-free Android music discovery and permitted-audio downloader designed to complement LokiTunes.
 
-## New in v0.2.2
+## In-app workflow
 
-- The **Videos** tab still searches/opens videos inside Vyntra. Pick a video and tap **Use Link**.
-- In **Music > Link downloader**, confirm you have permission, and tap **Save audio from supported link**.
-- Uses the free MIT-licensed `dev.ffmpegkit-maintained:yt-dlp-android:2.0.2` Android engine.
-- Downloads an **audio-only** stream when the provider allows it. No paid API key, external app, ads, or server.
-- Shows extraction progress/errors and saves successful files via MediaStore into **Music/Vyntra**, visible to other players such as LokiTunes.
-- Native original formats are retained (M4A, Opus, WebM audio, MP3 etc); **MP3 transcoding is not bundled**, and compatibility varies by music player.
-- Existing direct-file DownloadManager remains unchanged (saves into **Downloads/Vyntra**).
-- Existing GitHub Actions signing secrets, package ID, and release workflow are preserved.
+1. Open **Videos** and type a title or artist.
+2. Tap a video in the embedded web search, then wait until the video URL is selected.
+3. If you own the audio or have permission to download it, check the permission confirmation and tap **Save Audio**.
+4. Vyntra goes to **Downloads**, where transfer progress and errors appear.
+5. When complete, select **Play** from the saved audio list. Audio is saved in `Music/Vyntra` and can be opened with LokiTunes.
 
-### Limits
+**Copy Link** and **Use Link** also work if you prefer the manual link field in the Music tab.
 
-**Not a universal mainstream music downloader.** Search results on video services are not licensed audio downloads. YouTube and other sites can block extraction and have restrictions on downloading. Only download your own audio, openly licensed audio, or music you have permission to save. The user must confirm permission for each session. No bypass of DRM, login, payment, or restricted content is implemented.
+## Known limitations
 
-The yt-dlp Android dependency is fairly large (~60–80 MB), and supports 64-bit Android (arm64-v8a / x86_64). Some services require cookies/login or specific network clients and may fail. `Save audio` is experimental until verified by real device tests. This app does not promise Spotify-style catalog availability or automatic MP3 conversion.
+- Embedded third-party search may fail or restrict WebView navigation depending on provider policies.
+- The yt-dlp-based engine can fail on restricted or inaccessible sources. It does not bypass DRM and cannot guarantee audio downloads for popular commercial tracks.
+- Extraction is performed while the app is running. It is **not** a persistent background download service. If you exit or the system kills the app, the transfer may stop.
+- Output is the native source audio format (e.g. M4A or WebM/Opus), not necessarily MP3.
+- Direct, permitted `.mp3`, `.m4a`, etc. links use Android Download Manager and save to `Downloads/Vyntra`.
+- For music search results, iTunes listings are for discovery and store access; they are not direct downloadable MP3s. Audius/Jamendo depend on creator download permissions.
 
-### Build
+## Build / signing
 
-Keep your `.git` folder, overwrite the project source, and push to GitHub. Same `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` secrets. CI produces a signed APK on pushes to main. Do not upload the JKS/password to the repo.
+Use the repository's GitHub Actions workflow. Keep the existing `VYNTRA_KEYSTORE_BASE64` and `VYNTRA_KEYSTORE_PASSWORD` repository secrets; never commit private keystores. The Android app ID remains `io.github.lokij07.vyntra`. For consistent installation updates, use only the signed release APK and keep versionCode increasing.
 
-```bash
-git add -A
-git commit -m "feat: v0.2.2 in-app supported audio saving"
-git push origin main
-```
+## Testing
 
-### Smoke test (suggested)
-
-Use a publicly downloadable, explicitly licensed audio or video URL as the first test; check that it appears under **Music/Vyntra**. Separately test a direct `.mp3` link through the existing direct download field. Next test a permitted video page; if it fails, send the exact `Audio download failed:` message.
-
-### Security
-
-Only HTTPS URLs are accepted for extraction. Files download into a temporary app folder and are copied to Android MediaStore after a successful download; partial temp files are deleted. No private signing keys are bundled. The app does not request broad storage access.
-
-### License
-
-See root LICENSE. Bundled third-party dependencies retain their respective licenses and notices.
+Offline Kotlin unit tests and XML validation can be performed locally. The Android Gradle build and live provider/download behavior must be verified by GitHub Actions and on a device. No source can guarantee downloads of all commercial music without rights/authorization.

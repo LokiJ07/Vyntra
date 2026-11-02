@@ -134,7 +134,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.2.2", color = Muted, fontSize = 12.sp)
+                    Text("v0.2.3", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
@@ -155,6 +155,16 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                             activeTab = 0
                             announce("Video link selected. Try Save Audio for permitted content.")
                         },
+                        onSaveAudio = { selected, title ->
+                            vm.link = selected
+                            vm.selectedVideoTitle = title
+                            vm.saveAudioFromLink()
+                            // Download progress and the saved file list live on this page.
+                            activeTab = 2
+                        },
+                        audioBusy = vm.audioBusy,
+                        audioProgress = vm.audioProgress,
+                        audioStatus = vm.audioStatus,
                         onNotice = ::announce
                     )
                     2 -> DownloadsPage(vm, ::announce, ::openBrowser)
@@ -238,7 +248,7 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                     TextButton(onClick = { showDirectLink = !showDirectLink }) {
                         Icon(Icons.Default.Link, null, tint = Cyan)
                         Spacer(Modifier.width(8.dp))
-                        Text("Link downloader (direct audio files)")
+                        Text("Audio downloader • direct file or source link")
                         Spacer(Modifier.weight(1f))
                         Icon(if (showDirectLink) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = if (showDirectLink) "Collapse" else "Expand")
@@ -260,10 +270,11 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                             val result = vm.downloadDirectLink()
                             toast(result)
                             if (result.startsWith("Download queued")) onQueued()
-                        }, enabled = vm.link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                        }, enabled = io.github.lokij07.vyntra.data.AudioFiles.directLinkExtension(vm.link.trim()) != null,
+                            modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Download direct audio file")
+                            Text("Download direct MP3/M4A file")
                         }
                         Spacer(Modifier.height(10.dp))
                         var hasPermission by remember { mutableStateOf(false) }
@@ -599,10 +610,10 @@ private fun AboutPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl: (St
                 }
             }
         }
-        item { AboutCard("In-app video search", "The Videos tab opens YouTube's mobile search page inside Vyntra. Select a video to copy its real URL or move it into the link field. YouTube video pages cannot be downloaded as audio files by the built-in direct-file downloader; Vyntra does not bypass streaming restrictions.") }
-        item { AboutCard("Save and play", "Authorized full audio files download through Android Download Manager to Downloads/Vyntra, then can be opened with LokiTunes or another player.") }
+        item { AboutCard("In-app video search and save", "Select a video in the Videos tab, confirm download permission and tap Save Audio. Vyntra attempts an audio-only download using the on-device engine. Availability and success depend on the source; restricted content can fail.") }
+        item { AboutCard("Save and play", "Audio saved from a supported video link goes to Music/Vyntra. Direct MP3/M4A downloads go to Downloads/Vyntra. Both can be opened with LokiTunes or another compatible player.") }
         item { AboutCard("Licensing", "Not every song is free to download. Apple previews are for store promotion, not saving. Respect artist licenses and source terms.") }
-        item { Text("Vyntra v0.2.2 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.2.3 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 
