@@ -12,28 +12,93 @@ permissions:
 
 jobs:
   build:
-    name: Test and build debug APK
-    runs-on: ubuntu-latest
+    name: Test and build Vyntra
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Install Android SDK 35
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Set up Gradle
+
+      # GitHub-hosted Ubuntu images already have Android SDK command-line tools.
+      # Do NOT use setup-android@v3 with its legacy `tools` package default.
+      - name: Verify and install Android SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$SDKMANAGER" ]]; then
+            SDKMANAGER="$(command -v sdkmanager || true)"
+          fi
+          if [[ -z "$SDKMANAGER" || ! -x "$SDKMANAGER" ]]; then
+            echo '::error::Android sdkmanager was not found on this runner.'
+            exit 1
+          fi
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install \
+            'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+          test -f "$SDK_ROOT/platforms/android-35/android.jar"
+          test -x "$SDK_ROOT/build-tools/35.0.0/apksigner"
+
+      - name: Set up Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Unit tests and debug APK
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
-      - name: Upload APK
+
+      - name: Run unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
+
+      # PRs can test without access to sensitive repository signing secrets.
+      - name: Verify pull request debug build
+        if: github.event_name == 'pull_request'
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Restore stable private signing key
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          VYNTRA_KEYSTORE_BASE64: ${{ secrets.VYNTRA_KEYSTORE_BASE64 }}
+          VYNTRA_KEYSTORE_PASSWORD: ${{ secrets.VYNTRA_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$VYNTRA_KEYSTORE_BASE64" || -z "$VYNTRA_KEYSTORE_PASSWORD" ]]; then
+            echo '::error::Missing VYNTRA_KEYSTORE_BASE64 and/or VYNTRA_KEYSTORE_PASSWORD GitHub Actions secrets. See SIGNING_SETUP.md.'
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$VYNTRA_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/vyntra-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/vyntra-release.jks" \
+            -storepass "$VYNTRA_KEYSTORE_PASSWORD" -alias vyntra >/dev/null
+          echo 'Stable Vyntra signing key restored and verified.'
+
+      - name: Build consistently signed release APK
+        if: github.event_name != 'pull_request'
+        env:
+          VYNTRA_SIGNING_STORE_FILE: ${{ runner.temp }}/vyntra-release.jks
+          VYNTRA_SIGNING_PASSWORD: ${{ secrets.VYNTRA_KEYSTORE_PASSWORD }}
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Verify APK signing certificate
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-release.apk
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk \
+             "dist/Vyntra-v0.1.1-build-${GITHUB_RUN_NUMBER}.apk"
+
+      - name: Upload signed installable APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: Vyntra-v0.1.0-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Vyntra-v0.1.1-SIGNED-build-${{ github.run_number }}
+          path: dist/*.apk
           if-no-files-found: error
+          retention-days: 30

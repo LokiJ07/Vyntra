@@ -8,17 +8,34 @@ android {
     namespace = "io.github.lokij07.vyntra"
     compileSdk = 35
 
+    // Keep signing outside Git. Local debug builds do not need these variables.
+    val stableStorePath = System.getenv("VYNTRA_SIGNING_STORE_FILE")
+    val stableStorePassword = System.getenv("VYNTRA_SIGNING_PASSWORD")
+    signingConfigs {
+        create("vyntraRelease") {
+            if (!stableStorePath.isNullOrBlank() && !stableStorePassword.isNullOrBlank()) {
+                storeFile = file(stableStorePath)
+                storePassword = stableStorePassword
+                keyAlias = "vyntra"
+                keyPassword = stableStorePassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "io.github.lokij07.vyntra"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Each Actions run increments the code, enabling install-over-existing updates.
+        // Never reuse the same versionCode for a new public release.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("vyntraRelease")
         }
     }
     compileOptions {

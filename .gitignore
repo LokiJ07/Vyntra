@@ -8,3 +8,12 @@ build/
 *.aab
 .DS_Store
 captures/
+
+# Never commit release signing certificates or private keys
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+dist/

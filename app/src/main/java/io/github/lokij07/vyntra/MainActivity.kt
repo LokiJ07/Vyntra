@@ -129,7 +129,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1", color = Muted, fontSize = 12.sp)
+                    Text("v0.1.1", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser, onCopy = { value ->
@@ -436,7 +436,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 }
             }
         }
-        item { Text("Vyntra v0.1.0 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.1.1 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 
