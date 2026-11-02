@@ -14,7 +14,8 @@ data class AudioTrack(
     val attribution: String,
     val downloadable: Boolean = true,
     val downloadUrl: String? = null,
-    val isStoreCatalog: Boolean = false
+    val isStoreCatalog: Boolean = false,
+    val artworkUrl: String = ""
 ) {
     val licenseLabel: String
         get() = listOf(license.uppercase(), licenseVersion)

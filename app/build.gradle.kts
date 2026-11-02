@@ -28,8 +28,8 @@ android {
         targetSdk = 35
         // Each Actions run increments the code, enabling install-over-existing updates.
         // Never reuse the same versionCode for a new public release.
-        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 5
-        versionName = "0.1.5"
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()?.let { 10000 + it } ?: 6
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -66,6 +66,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }

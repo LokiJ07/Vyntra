@@ -12,13 +12,13 @@ import java.net.URLEncoder
 class AudiusRepository {
     suspend fun search(query: String, page: Int, field: SearchField): SearchResult = withContext(Dispatchers.IO) {
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
-        val url = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=20&offset=${(page-1)*20}&app_name=Vyntra&sort_method=relevant"
+        val url = "https://api.audius.co/v1/tracks/search?query=$encoded&limit=40&only_downloadable=true&offset=${(page-1)*40}&app_name=Vyntra&sort_method=relevant"
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.5 (Android music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.2.0 (Android music discovery)")
         }
         try {
             val status = connection.responseCode
@@ -41,7 +41,8 @@ class AudiusRepository {
                         else -> "https://audius.co/"
                     }
                     val enabled = obj.optBoolean("downloadable", obj.optBoolean("is_downloadable", false))
-                    val hasGate = !obj.isNull("download_conditions") && obj.has("download_conditions")
+                    val gate = obj.opt("download_conditions")
+                    val hasGate = gate != null && gate != org.json.JSONObject.NULL
                     val permitted = enabled && !hasGate
                     val stream = "https://api.audius.co/v1/tracks/$id/stream?app_name=Vyntra"
                     val download = if (permitted) "https://api.audius.co/v1/tracks/$id/download?app_name=Vyntra&original=false" else null
@@ -59,14 +60,18 @@ class AudiusRepository {
                         provider = "Audius",
                         attribution = "${obj.optString("title")} — $artist | Audius: $source",
                         downloadable = permitted,
-                        downloadUrl = download
+                        downloadUrl = download,
+                        artworkUrl = obj.optJSONObject("artwork")?.optString("480x480")
+                            .orEmpty().ifBlank { obj.optJSONObject("artwork")?.optString("_480x480").orEmpty() }
+                            .orEmpty().ifBlank { obj.optJSONObject("artwork")?.optString("150x150").orEmpty()
+                                .ifBlank { obj.optJSONObject("artwork")?.optString("_150x150").orEmpty() } }
                     ))
                 }
             }
             val ranked = songs.mapNotNull { track ->
                 SearchRelevance.score(query, track.title, track.creator, field)?.let { it to track }
             }.sortedByDescending { it.first }.map { it.second }
-            SearchResult(ranked, results.length() >= 20)
+            SearchResult(ranked, results.length() >= 40)
         } finally { connection.disconnect() }
     }
 }

@@ -14,21 +14,28 @@ class ItunesRepository {
         if (page > 1) return@withContext SearchResult(emptyList(), false)
         val encoded = URLEncoder.encode(query.trim(), "UTF-8")
         val attribute = field.apiAttribute?.let { "&attribute=$it" }.orEmpty()
-        val matches = searchCountry(encoded, query, field, attribute, "PH")
-        // An empty Philippine storefront result is not proof the song does not exist.
-        val songs = if (matches.isEmpty()) searchCountry(encoded, query, field, attribute, "US") else matches
-        SearchResult(songs, false)
+        // Combine both storefronts to cover Filipino and international music.
+        // One country can omit a release that exists in the other.
+        val notices = mutableListOf<String>()
+        val ph = try { searchCountry(encoded, query, field, attribute, "PH") }
+            catch (e: Exception) { notices.add("PH catalog: ${e.message}"); emptyList() }
+        val us = try { searchCountry(encoded, query, field, attribute, "US") }
+            catch (e: Exception) { notices.add("US catalog: ${e.message}"); emptyList() }
+        if (ph.isEmpty() && us.isEmpty() && notices.size == 2) error(notices.joinToString(" • "))
+        SearchResult((ph + us).distinctBy { it.id }.mapNotNull { track ->
+            SearchRelevance.score(query, track.title, track.creator, field)?.let { it to track }
+        }.sortedByDescending { it.first }.map { it.second }, false)
     }
 
     private fun searchCountry(encoded: String, query: String, field: SearchField,
                               attribute: String, country: String): List<AudioTrack> {
-        val url = "https://itunes.apple.com/search?term=$encoded&country=$country&media=music&entity=song$attribute&limit=100"
+        val url = "https://itunes.apple.com/search?term=$encoded&country=$country&media=music&entity=song$attribute&limit=70"
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.5 (music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.2.0 (music discovery)")
         }
         return try {
             val status = connection.responseCode
@@ -57,7 +64,8 @@ class ItunesRepository {
                         provider = "iTunes Store",
                         attribution = "${obj.optString("trackName")} — ${obj.optString("artistName")} | iTunes Store",
                         downloadable = false,
-                        isStoreCatalog = true
+                        isStoreCatalog = true,
+                        artworkUrl = obj.optString("artworkUrl100").replace("100x100", "300x300")
                     ))
                 }
             }

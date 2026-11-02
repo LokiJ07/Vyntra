@@ -20,7 +20,7 @@ class DownloadsRepository(private val context: Context) {
         val fileName = "${System.currentTimeMillis()}_${AudioFiles.safeName(title)}.$ext"
         val request = DownloadManager.Request(Uri.parse(url)).apply {
             setTitle(title)
-            addRequestHeader("User-Agent", "Vyntra/0.1.5 (Android)")
+            addRequestHeader("User-Agent", "Vyntra/0.2.0 (Android)")
             setDescription("Vyntra • $creator")
             setMimeType(AudioFiles.mimeFor(ext))
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)

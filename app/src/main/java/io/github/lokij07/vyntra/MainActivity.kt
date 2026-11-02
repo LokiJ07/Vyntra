@@ -36,10 +36,10 @@ import io.github.lokij07.vyntra.data.SearchField
 import io.github.lokij07.vyntra.model.AudioTrack
 import io.github.lokij07.vyntra.model.DownloadRecord
 import io.github.lokij07.vyntra.ui.PreviewPlayer
-import io.github.lokij07.vyntra.ui.SearchSource
 import io.github.lokij07.vyntra.ui.VyntraViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
 
 private val Night = Color(0xFF0B0916)
 private val CardColor = Color(0xFF17132A)
@@ -131,7 +131,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1.5", color = Muted, fontSize = 12.sp)
+                    Text("v0.2.0", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
                     0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
@@ -141,7 +141,7 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                             announce("Credits copied. This is NOT an audio download URL.")
                         })
                     1 -> DownloadsPage(vm, ::announce, ::openBrowser)
-                    else -> AboutPage(::openBrowser)
+                    else -> AboutPage(vm, ::announce, ::openBrowser)
                 }
             }
         }
@@ -165,12 +165,12 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                     .padding(22.dp)
             ) {
                 Column {
-                    Text("DISCOVER • DOWNLOAD • LISTEN", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("SEARCH • DOWNLOAD • LISTEN", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(10.dp))
                     Text("Your music.\nYour world.", fontSize = 31.sp, lineHeight = 36.sp,
                         fontWeight = FontWeight.ExtraBold, color = Color.White)
                     Spacer(Modifier.height(11.dp))
-                    Text("Discover real artists and songs. Download only when the creator allows it.",
+                    Text("One search for OPM and world music. Full downloads appear first when the artist permits them.",
                         fontSize = 13.sp, lineHeight = 19.sp, color = Color(0xFFE6DDF9))
                 }
             }
@@ -178,20 +178,8 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
         item {
             SectionTitle("Find the right song", "Search real track titles and performer names")
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SearchSource.entries.forEach { source ->
-                    FilterChip(
-                        selected = vm.searchSource == source,
-                        onClick = { preview.stop(); vm.selectSource(source) },
-                        enabled = !vm.isSearching,
-                        label = { Text(source.label, fontSize = 12.sp) }
-                    )
-                }
-            }
-            Text(if (vm.searchSource == SearchSource.AUDIUS)
-                    "Tap Download on an eligible result; no copying or pasting needed. Only songs enabled by the creator."
-                 else "Official titles and artists, preview/store links ONLY. To download artist-approved music, select Artist downloads.",
-                 color = Muted, fontSize = 12.sp)
+            Text("Downloadable music: Audius + Jamendo (optional). Official songs: iTunes PH + US. Store listings are not free MP3 downloads.",
+                color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
             Spacer(Modifier.height(10.dp))
             Text("Match by", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(4.dp))
@@ -260,16 +248,9 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            SectionTitle(
-                "Matching results",
-                if (vm.tracks.isEmpty()) {
-                    "Real titles and artist names only"
-                } else {
-                    "${vm.tracks.size} relevant track${if (vm.tracks.size == 1) "" else "s"} found"
-                }
-            )
+            SectionTitle("Downloadable songs", "${vm.downloadableTracks.size} artist-authorized audio files")
         }
-        if (vm.isSearching && vm.tracks.isEmpty()) {
+        if (vm.isSearching) {
             item { Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Accent)
             } }
@@ -277,14 +258,10 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
         vm.error?.let { message ->
             item { Text(message, color = Color(0xFFFFABAB), fontSize = 13.sp) }
         }
-        if (!vm.isSearching && vm.error == null && vm.tracks.isEmpty()) {
-            item { EmptyCard(if (vm.query.isBlank())
-                "Enter an artist or song title to search. Try SB19, Bruno Mars or Gento."
-                else if (vm.searchSource == SearchSource.AUDIUS)
-                    "No artist-approved downloadable tracks matched exactly. Try Official music to find the song listing."
-                else "No matching song or artist in this store catalog. Try another spelling or choose Artist / Song title.") }
+        if (!vm.isSearching && vm.hasSearched && vm.downloadableTracks.isEmpty()) {
+            item { EmptyCard("No matching downloads found from the connected sources. This does not mean the artist's official song does not exist; check Official songs below. Jamendo requires a free Client ID in About.") }
         }
-        items(vm.tracks, key = { it.id }) { track ->
+        items(vm.downloadableTracks, key = { it.id }) { track ->
             TrackCard(track,
                 isPlaying = preview.playingId == track.id,
                 isLoading = preview.loadingId == track.id,
@@ -296,22 +273,42 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 },
                 onSource = { openUrl(track.landingUrl) },
                 onLicense = { openUrl(track.licenseUrl) },
-                onCopy = { onCopy(track.attribution.ifBlank {
-                    "${track.title} — ${track.creator} | ${track.licenseLabel} | ${track.landingUrl}"
-                }) }
+                onCopy = { onCopy(track.attribution) }
             )
         }
-        if (vm.tracks.isNotEmpty() && vm.canLoadMore) {
+        item {
+            SectionTitle("Official songs & artists", "${vm.officialTracks.size} genuine store listings • preview / buy only")
+        }
+        if (!vm.isSearching && !vm.hasSearched) {
+            item { EmptyCard("Type a song or artist, e.g. SB19, Cup of Joe, Adele, or Bruno Mars. Vyntra searches available music in any language, not a hardcoded artist list.") }
+        }
+        if (!vm.isSearching && vm.hasSearched && vm.officialTracks.isEmpty()) {
+            item { EmptyCard("No matching official songs found in the PH / US catalogs. Availability varies by country and artist.") }
+        }
+        items(vm.officialTracks, key = { it.id }) { track ->
+            TrackCard(track,
+                isPlaying = preview.playingId == track.id,
+                isLoading = preview.loadingId == track.id,
+                onPreview = { preview.toggle(track, toast) },
+                onDownload = { toast("This is a store listing, not an MP3 file.") },
+                onSource = { openUrl(track.landingUrl) },
+                onLicense = { openUrl(track.licenseUrl) },
+                onCopy = { onCopy(track.attribution) }
+            )
+        }
+        if (vm.notices.isNotEmpty()) {
             item {
-                OutlinedButton(
-                    onClick = { vm.search(loadMore = true) },
-                    enabled = !vm.isSearching,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
-                ) { Text(if (vm.isSearching) "Loading..." else "Load more") }
+                ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = CardColor)) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("Provider status", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        vm.notices.forEach { Text(it, color = Muted, fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 5.dp)) }
+                    }
+                }
             }
         }
         item {
-            Text("Results must match your artist or song title. Artist downloads are limited to tracks the creator permits. Official music results link to the store, not free MP3 files.",
+            Text("Only genuine downloads are saved to Downloads/Vyntra. An official song listing may link to a store rather than a downloadable audio file.",
                 color = Muted, fontSize = 11.sp, lineHeight = 16.sp,
                 modifier = Modifier.padding(bottom = 14.dp))
         }
@@ -330,6 +327,12 @@ private fun TrackCard(track: AudioTrack, isPlaying: Boolean, isLoading: Boolean,
                     .background(Brush.linearGradient(listOf(Color(0xFF7542CF), Color(0xFF245D83)))),
                     contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp))
+                    if (track.artworkUrl.startsWith("https://")) {
+                        AsyncImage(model = track.artworkUrl,
+                            contentDescription = "${track.title} cover artwork",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -487,7 +490,8 @@ private fun DownloadCard(record: DownloadRecord, onOpen: () -> Unit,
 }
 
 @Composable
-private fun AboutPage(openUrl: (String) -> Unit) {
+private fun AboutPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl: (String) -> Unit) {
+    var clientInput by remember(vm) { mutableStateOf(vm.jamendoClientId) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
@@ -502,26 +506,34 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 }
             }
         }
-        item { SectionTitle("How it works", "Independent app • LokiTunes-friendly") }
-        item { AboutCard("1 • Discover", "Search official song listings by artist or title, or switch to artist-enabled Audius downloads. Results are filtered for actual matches.") }
-        item { AboutCard("2 • Check permissions", "Audius creators control whether their track can be downloaded. Official iTunes listings are browse, preview and store-link only.") }
-        item { AboutCard("3 • Download", "Authorized audio downloads go to the shared Downloads/Vyntra folder using Android Download Manager.") }
-        item { AboutCard("4 • Listen offline", "Tap Play / Open to choose an installed audio player. LokiTunes may also discover these files in its local library scan.") }
+        item { SectionTitle("Music sources", "One search, different kinds of access") }
+        item { AboutCard("Audius • free to search", "Creator-uploaded music. Only publicly downloadable tracks appear in the Downloadable songs section. Actual availability depends on creator permissions.") }
+        item { AboutCard("Official music • Apple iTunes", "Search OPM and international artist/song listings in PH and US catalogs. These results can be previewed or opened in the official store; no full MP3 download from Apple previews.") }
         item {
-            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = CardColor)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Music licensing matters", fontWeight = FontWeight.Bold)
+            ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = CardColor),
+                shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(17.dp)) {
+                    Text("Jamendo downloads (optional)", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(7.dp))
-                    Text("Vyntra does not rip paid streaming tracks or download Apple preview clips. Audius downloads require artist permission. Check the source rights before reuse.",
-                        color = Muted, fontSize = 13.sp, lineHeight = 19.sp)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(onClick = { openUrl("https://audius.co/") }) {
-                        Text("About Audius")
+                    Text("More openly licensed artist songs. Register a Jamendo developer app to obtain your public Client ID, then enter it below. Never enter passwords or bearer tokens.",
+                        color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    Spacer(Modifier.height(9.dp))
+                    OutlinedTextField(value = clientInput, onValueChange = { clientInput = it.trim() },
+                        label = { Text("Jamendo Client ID") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                    Spacer(Modifier.height(9.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { toast(vm.saveJamendoClientId(clientInput)) }) { Text("Save ID") }
+                        OutlinedButton(onClick = { openUrl("https://devportal.jamendo.com/") }) {
+                            Text("Get Client ID")
+                        }
                     }
                 }
             }
         }
-        item { Text("Vyntra v0.1.5 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { AboutCard("Save and play", "Authorized full audio files download through Android Download Manager to Downloads/Vyntra, then can be opened with LokiTunes or another player.") }
+        item { AboutCard("Licensing", "Not every song is free to download. Apple previews are for store promotion, not saving. Respect artist licenses and source terms.") }
+        item { Text("Vyntra v0.2.0 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 
