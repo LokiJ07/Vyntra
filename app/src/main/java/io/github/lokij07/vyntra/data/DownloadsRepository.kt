@@ -20,6 +20,7 @@ class DownloadsRepository(private val context: Context) {
         val fileName = "${System.currentTimeMillis()}_${AudioFiles.safeName(title)}.$ext"
         val request = DownloadManager.Request(Uri.parse(url)).apply {
             setTitle(title)
+            addRequestHeader("User-Agent", "Vyntra/0.1.5 (Android)")
             setDescription("Vyntra • $creator")
             setMimeType(AudioFiles.mimeFor(ext))
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
@@ -43,19 +44,26 @@ class DownloadsRepository(private val context: Context) {
                     val soFar = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
                     val total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                     val progress = if (total > 0) ((soFar * 100L) / total).toInt().coerceIn(0, 100) else null
-                    record.copy(status = status, progress = progress)
+                    val reason = if (status == DownloadManager.STATUS_FAILED || status == DownloadManager.STATUS_PAUSED)
+                        cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON)) else null
+                    val responseMime = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_MEDIA_TYPE))
+                    record.copy(status = status, progress = progress, reason = reason, responseMime = responseMime)
                 }
             }
         } catch (_: Exception) { record.copy(status = DownloadManager.STATUS_FAILED) }
     }
 
     fun cancel(record: DownloadRecord) {
-        if (record.status != DownloadManager.STATUS_SUCCESSFUL) manager.remove(record.id)
+        if (record.status != DownloadManager.STATUS_SUCCESSFUL ||
+            DownloadHealth.isObviouslyNotAudio(record.responseMime)) manager.remove(record.id)
         val remaining = load().filterNot { it.id == record.id }
         persist(remaining)
     }
 
     fun open(record: DownloadRecord) {
+        require(!DownloadHealth.isObviouslyNotAudio(record.responseMime)) {
+            "The server saved a web page instead of audio. Please use a real audio download source."
+        }
         val uri = manager.getUriForDownloadedFile(record.id)
             ?: error("File unavailable. It may have been moved or deleted.")
         val ext = record.filename.substringAfterLast('.', "mp3")

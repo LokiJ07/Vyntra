@@ -28,7 +28,7 @@ class ItunesRepository {
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.4 (music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.1.5 (music discovery)")
         }
         return try {
             val status = connection.responseCode

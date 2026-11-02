@@ -12,5 +12,7 @@ data class DownloadRecord(
     val sourcePage: String,
     val timeMillis: Long,
     val status: Int = DownloadManager.STATUS_PENDING,
-    val progress: Int? = null
+    val progress: Int? = null,
+    val reason: Int? = null,
+    val responseMime: String? = null
 )

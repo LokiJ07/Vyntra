@@ -131,13 +131,15 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
                     Spacer(Modifier.width(10.dp))
                     Text("VYNTRA", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("v0.1.4", color = Muted, fontSize = 12.sp)
+                    Text("v0.1.5", color = Muted, fontSize = 12.sp)
                 }
                 when (activeTab) {
-                    0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser, onCopy = { value ->
-                        clipboard.setText(AnnotatedString(value))
-                        announce("Attribution copied")
-                    })
+                    0 -> DiscoverPage(vm, preview, ::announce, ::openBrowser,
+                        onQueued = { activeTab = 1; vm.refreshDownloads() },
+                        onCopy = { value ->
+                            clipboard.setText(AnnotatedString(value))
+                            announce("Credits copied. This is NOT an audio download URL.")
+                        })
                     1 -> DownloadsPage(vm, ::announce, ::openBrowser)
                     else -> AboutPage(::openBrowser)
                 }
@@ -149,7 +151,8 @@ private fun VyntraApp(vm: VyntraViewModel = viewModel()) {
 @Composable
 private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                          toast: (String) -> Unit, openUrl: (String) -> Unit,
-                         onCopy: (String) -> Unit) {
+                         onQueued: () -> Unit, onCopy: (String) -> Unit) {
+    var showDirectLink by remember { mutableStateOf(false) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
@@ -186,8 +189,8 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 }
             }
             Text(if (vm.searchSource == SearchSource.AUDIUS)
-                    "Only creator-enabled downloads on Audius. Mainstream songs may not be available."
-                 else "Official OPM/international music. Search and view in store; not free MP3 downloads.",
+                    "Tap Download on an eligible result; no copying or pasting needed. Only songs enabled by the creator."
+                 else "Official titles and artists, preview/store links ONLY. To download artist-approved music, select Artist downloads.",
                  color = Muted, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
             Text("Match by", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
@@ -226,27 +229,32 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             ElevatedCard(colors = CardDefaults.elevatedCardColors(containerColor = CardColor),
                 shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(17.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showDirectLink = !showDirectLink }) {
                         Icon(Icons.Default.Link, null, tint = Cyan)
                         Spacer(Modifier.width(8.dp))
-                        Text("Have a direct audio link?", fontWeight = FontWeight.Bold)
+                        Text("Advanced: direct audio file URL (optional)")
+                        Spacer(Modifier.weight(1f))
+                        Icon(if (showDirectLink) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (showDirectLink) "Collapse" else "Expand")
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text("Paste an authorized HTTPS audio file URL (.mp3, .m4a, etc.).",
-                        fontSize = 12.sp, color = Muted)
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = vm.link, onValueChange = { vm.link = it },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("https://example.com/music.mp3") },
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Button(onClick = { toast(vm.downloadDirectLink()) },
-                        enabled = vm.link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Download file")
+                    if (showDirectLink) {
+                        Text("NOT for song titles, copied credits, iTunes links, or normal music pages. Only paste a direct authorized audio file link ending in .mp3, .m4a, etc.",
+                            fontSize = 12.sp, color = Muted)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(value = vm.link, onValueChange = { vm.link = it },
+                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("https://example.com/song.mp3") },
+                            shape = RoundedCornerShape(12.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = {
+                            val result = vm.downloadDirectLink()
+                            toast(result)
+                            if (result.startsWith("Download queued")) onQueued()
+                        }, enabled = vm.link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Download direct audio file")
+                        }
                     }
                 }
             }
@@ -281,7 +289,11 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
                 isPlaying = preview.playingId == track.id,
                 isLoading = preview.loadingId == track.id,
                 onPreview = { preview.toggle(track, toast) },
-                onDownload = { toast(vm.download(track)) },
+                onDownload = {
+                    val message = vm.download(track)
+                    toast(message)
+                    if (message.startsWith("Download queued")) onQueued()
+                },
                 onSource = { openUrl(track.landingUrl) },
                 onLicense = { openUrl(track.licenseUrl) },
                 onCopy = { onCopy(track.attribution.ifBlank {
@@ -338,7 +350,7 @@ private fun TrackCard(track: AudioTrack, isPlaying: Boolean, isLoading: Boolean,
                 color = Muted, fontSize = 11.sp, maxLines = 2)
             if (track.isStoreCatalog) {
                 Spacer(Modifier.height(5.dp))
-                Text("Preview provided courtesy of iTunes • streamed only",
+                Text("Search result only • NOT a downloadable audio file",
                     color = Cyan, fontSize = 11.sp)
             }
             Spacer(Modifier.height(10.dp))
@@ -348,7 +360,7 @@ private fun TrackCard(track: AudioTrack, isPlaying: Boolean, isLoading: Boolean,
                         contentPadding = PaddingValues(horizontal = 8.dp)) {
                         Icon(Icons.Default.OpenInNew, null, Modifier.size(17.dp))
                         Spacer(Modifier.width(5.dp))
-                        Text("View on iTunes", fontSize = 12.sp)
+                        Text("View / buy", fontSize = 12.sp)
                     }
                 } else {
                     Button(onClick = onDownload, enabled = track.downloadable,
@@ -365,7 +377,7 @@ private fun TrackCard(track: AudioTrack, isPlaying: Boolean, isLoading: Boolean,
                     Icon(Icons.Default.Gavel, contentDescription = "View license", tint = Muted)
                 }
                 IconButton(onClick = onCopy) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy attribution", tint = Muted)
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy credits (not a download link)", tint = Muted)
                 }
             }
         }
@@ -403,12 +415,23 @@ private fun DownloadsPage(vm: VyntraViewModel, toast: (String) -> Unit, openUrl:
 @Composable
 private fun DownloadCard(record: DownloadRecord, onOpen: () -> Unit,
                          onCancel: () -> Unit, onSource: () -> Unit, onLicense: () -> Unit) {
-    val state = when (record.status) {
-        DownloadManager.STATUS_SUCCESSFUL -> "Completed"
-        DownloadManager.STATUS_RUNNING -> "Downloading"
-        DownloadManager.STATUS_PENDING -> "Queued"
-        DownloadManager.STATUS_PAUSED -> "Waiting for network"
-        else -> "Failed / unavailable"
+    val wrongFormat = record.status == DownloadManager.STATUS_SUCCESSFUL &&
+        io.github.lokij07.vyntra.data.DownloadHealth.isObviouslyNotAudio(record.responseMime)
+    val state = when {
+        wrongFormat -> "Invalid file: not audio"
+        record.status == DownloadManager.STATUS_SUCCESSFUL -> "Completed"
+        record.status == DownloadManager.STATUS_RUNNING -> "Downloading"
+        record.status == DownloadManager.STATUS_PENDING -> "Queued"
+        record.status == DownloadManager.STATUS_PAUSED -> "Paused"
+        else -> "Failed"
+    }
+    val detail = when {
+        wrongFormat -> "The source returned a web page or JSON instead of an audio file."
+        record.status == DownloadManager.STATUS_FAILED ->
+            io.github.lokij07.vyntra.data.DownloadHealth.failure(record.reason)
+        record.status == DownloadManager.STATUS_PAUSED ->
+            io.github.lokij07.vyntra.data.DownloadHealth.pause(record.reason)
+        else -> null
     }
     ElevatedCard(shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = CardColor)) {
@@ -423,7 +446,12 @@ private fun DownloadCard(record: DownloadRecord, onOpen: () -> Unit,
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text(state + (record.progress?.let { " • $it%" } ?: ""), fontSize = 12.sp, color = Accent)
+            Text(state + (record.progress?.let { " • $it%" } ?: ""), fontSize = 12.sp,
+                color = if (detail != null && (wrongFormat || record.status == DownloadManager.STATUS_FAILED)) Color(0xFFFFABAB) else Accent)
+            if (detail != null) {
+                Spacer(Modifier.height(5.dp))
+                Text(detail, fontSize = 12.sp, color = Color(0xFFFFB7B7))
+            }
             if (record.status == DownloadManager.STATUS_RUNNING && record.progress != null) {
                 Spacer(Modifier.height(7.dp))
                 LinearProgressIndicator(progress = { (record.progress ?: 0) / 100f },
@@ -435,7 +463,7 @@ private fun DownloadCard(record: DownloadRecord, onOpen: () -> Unit,
             }
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (record.status == DownloadManager.STATUS_SUCCESSFUL) {
+                if (record.status == DownloadManager.STATUS_SUCCESSFUL && !wrongFormat) {
                     Button(onClick = onOpen) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
@@ -443,7 +471,7 @@ private fun DownloadCard(record: DownloadRecord, onOpen: () -> Unit,
                     }
                 } else {
                     OutlinedButton(onClick = onCancel) {
-                        Text("Cancel / remove")
+                        Text(if (record.status == DownloadManager.STATUS_FAILED || wrongFormat) "Remove failed" else "Cancel / remove")
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -493,7 +521,7 @@ private fun AboutPage(openUrl: (String) -> Unit) {
                 }
             }
         }
-        item { Text("Vyntra v0.1.3 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
+        item { Text("Vyntra v0.1.5 • Android 10+ • Free & open source", color = Muted, fontSize = 11.sp) }
     }
 }
 

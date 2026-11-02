@@ -18,7 +18,7 @@ class AudiusRepository {
             connectTimeout = 12000
             readTimeout = 15000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "Vyntra/0.1.4 (Android music discovery)")
+            setRequestProperty("User-Agent", "Vyntra/0.1.5 (Android music discovery)")
         }
         try {
             val status = connection.responseCode
@@ -44,7 +44,7 @@ class AudiusRepository {
                     val hasGate = !obj.isNull("download_conditions") && obj.has("download_conditions")
                     val permitted = enabled && !hasGate
                     val stream = "https://api.audius.co/v1/tracks/$id/stream?app_name=Vyntra"
-                    val download = if (permitted) "https://api.audius.co/v1/tracks/$id/download?app_name=Vyntra&format=mp3" else null
+                    val download = if (permitted) "https://api.audius.co/v1/tracks/$id/download?app_name=Vyntra&original=false" else null
                     if (!permitted) continue // Downloads tab means truly downloadable tracks.
                     add(AudioTrack(
                         id = "audius_$id",

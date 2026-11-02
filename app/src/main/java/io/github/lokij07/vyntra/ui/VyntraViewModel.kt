@@ -113,7 +113,7 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
                 downloader.enqueue(targetUrl, track.title, track.creator, track.licenseLabel,
                     track.licenseUrl, track.landingUrl, ext)
                 refreshDownloads()
-                "Added to Downloads/Vyntra"
+                "Download queued. Check Downloads tab for progress or an error."
             }
         } catch (e: Exception) {
             "Download failed: ${e.message ?: "Unknown error"}"
@@ -122,14 +122,14 @@ class VyntraViewModel(application: Application) : AndroidViewModel(application) 
 
     fun downloadDirectLink(): String {
         val ext = AudioFiles.directLinkExtension(link.trim())
-            ?: return "Enter a direct HTTPS audio link ending in .mp3, .m4a, .flac, .ogg, .opus, .wav or .aac."
+            ?: return "This field needs a direct HTTPS audio file URL (.mp3, .m4a, etc.), not a song name or store link. Use Artist downloads for eligible songs."
         return try {
             val url = link.trim()
             val title = url.substringBefore('?').substringAfterLast('/').substringBeforeLast('.')
             downloader.enqueue(url, title.ifBlank { "Direct audio" }, "Direct link", "Verify source rights", ext = ext)
             link = ""
             refreshDownloads()
-            "Added to Downloads/Vyntra"
+            "Download queued. Check Downloads tab for progress or an error."
         } catch (e: Exception) { "Download failed: ${e.message ?: "Unknown error"}" }
     }
 
