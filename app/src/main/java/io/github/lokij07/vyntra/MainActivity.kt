@@ -252,9 +252,14 @@ private fun DiscoverPage(vm: VyntraViewModel, preview: PreviewPlayer,
             }
         }
         item {
-            SectionTitle("Matching results", if (vm.tracks.isEmpty())
-                "Real titles and artist names only"
-                "${vm.tracks.size} relevant track${if (vm.tracks.size == 1) "" else "s"} found")
+            SectionTitle(
+                "Matching results",
+                if (vm.tracks.isEmpty()) {
+                    "Real titles and artist names only"
+                } else {
+                    "${vm.tracks.size} relevant track${if (vm.tracks.size == 1) "" else "s"} found"
+                }
+            )
         }
         if (vm.isSearching && vm.tracks.isEmpty()) {
             item { Box(Modifier.fillMaxWidth().padding(18.dp), contentAlignment = Alignment.Center) {
